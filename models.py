@@ -260,7 +260,7 @@ def graph_embedding(compute_ef, num_epochs, output_dim,
     Nr = N*(N-1)
     if compute_ef == 1:
         num_of_edge_feat = len(edge_list)
-        edge_feat = Input(shaape=(Nr, num_of_edge_feat), name='edge_feat')
+        edge_feat = Input(shape=(Nr, num_of_edge_feat), name='edge_feat')
         inputs.append(edge_feat)
 
     # can concatenate all 3 if updated in hls4ml, for now; do it pairwise
