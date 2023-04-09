@@ -189,7 +189,8 @@ class ConcreteSelect(Layer):
 
     def build(self, input_shape):
         self.temp = self.add_weight(name = 'temp', shape = [], initializer = initializers.Constant(self.start_temp), trainable = False)
-        shape = (self.output_dim, input_shape[1])
+        shape = (self.output_dim, input_shape[2])
+        print("shape", shape)
         self.logits = self.add_weight(name = 'logits', shape = (self.output_dim, input_shape[2]), initializer = initializers.glorot_normal(), trainable = True)      # (:, selected features, all features)
         super(ConcreteSelect, self).build(input_shape)
     
