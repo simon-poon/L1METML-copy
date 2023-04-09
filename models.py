@@ -286,17 +286,16 @@ def graph_embedding(compute_ef, num_epochs, output_dim,
 
     # Edges MLP
     h = Permute((2, 1), input_shape=node_feat.shape[1:])(node_feat)
-    
-    steps_per_epoch = batch_size
-    alpha = np.exp(np.log(min_temp / start_temp) / (num_epochs * steps_per_epoch))   
-
-
-    h = ConcreteSelect(output_dim=output_dim, start_temp=start_temp, min_temp=min_temp, alpha=alpha, name = 'concrete_select')(h)
 
     edge_units = [64, 32, 16]
     n_edge_dense_layers = len(edge_units)
     if compute_ef == 1:
         h = Concatenate(axis=2, name='concatenate_edge')([h, edge_feat])
+    
+    steps_per_epoch = batch_size
+    alpha = np.exp(np.log(min_temp / start_temp) / (num_epochs * steps_per_epoch))   
+    h = ConcreteSelect(output_dim=output_dim, start_temp=start_temp, min_temp=min_temp, alpha=alpha, name = 'concrete_select')(h)
+    
     for i_dense in range(n_edge_dense_layers):
         h = Dense(edge_units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(h)
         h = BatchNormalization(momentum=0.95)(h)
