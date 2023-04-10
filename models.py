@@ -182,15 +182,14 @@ class ConcreteSelect(Layer):
     def __init__(self, output_dim, start_temp = 10.0, min_temp = 0.1, alpha = 0.99999, **kwargs):
         self.output_dim = output_dim
         self.start_temp = start_temp
-        self.min_temp = K.constant(min_temp)
-        self.alpha = K.constant(alpha)
+        self.min_temp = min_temp
+        self.alpha = alpha
         super(ConcreteSelect, self).__init__(**kwargs)
     
 
     def build(self, input_shape):
         self.temp = self.add_weight(name = 'temp', shape = [], initializer = initializers.Constant(self.start_temp), trainable = False)
         shape = (self.output_dim, input_shape[2])
-        print("shape", shape)
         self.logits = self.add_weight(name = 'logits', shape = (self.output_dim, input_shape[2]), initializer = initializers.glorot_normal(), trainable = True)      # (:, selected features, all features)
         super(ConcreteSelect, self).build(input_shape)
     
@@ -207,8 +206,6 @@ class ConcreteSelect(Layer):
     
 
         self.selections = K.in_train_phase(samples, discrete_logits, training)
-        print("X shape:  ", X.shape)
-        print("transpose self.selections shape", K.transpose(self.selections))
         Y = K.dot(X, K.transpose(self.selections))
     
 
