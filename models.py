@@ -226,9 +226,9 @@ def graph_embedding(compute_ef, n_features=6,
     x = Permute((2, 1), input_shape=x.shape[1:])(x)
 
     # Marshaling function
-    ORr = Dense(Nr, use_bias=False, trainable=False, name='tmul_{}_1'.format(name))(x)  # Receiving adjacency matrix
+    #ORr = Dense(Nr, use_bias=False, trainable=False, name='tmul_{}_1'.format(name))(x)  # Receiving adjacency matrix
     ORs = Dense(Nr, use_bias=False, trainable=False, name='tmul_{}_2'.format(name))(x)  # Sending adjacency matrix
-    node_feat = Concatenate(axis=1)([ORr, ORs])  # Concatenates Or and Os  ( no relations features Ra matrix )
+    node_feat = ORs  # Concatenates Or and Os  ( no relations features Ra matrix )
     # Outputis new array = [batch, 2x features, edges]
 
     # Edges MLP
@@ -272,7 +272,7 @@ def graph_embedding(compute_ef, n_features=6,
 
     # Create a fully connected adjacency matrix
     Rs, Rr = assign_matrices(N, Nr)
-    keras_model.get_layer('tmul_{}_1'.format(name)).set_weights([Rr])
+    #keras_model.get_layer('tmul_{}_1'.format(name)).set_weights([Rr])
     keras_model.get_layer('tmul_{}_2'.format(name)).set_weights([Rs])
     keras_model.get_layer('tmul_{}_3'.format(name)).set_weights([np.transpose(Rr)])
 
