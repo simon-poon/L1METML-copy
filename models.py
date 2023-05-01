@@ -10,7 +10,6 @@ import numpy as np
 import itertools
 
 
-
 def dense_embedding(n_features=6,
                     n_features_cat=2,
                     activation='relu',
@@ -94,6 +93,7 @@ def dense_embedding_quantized(n_features=6,
 
     inputs_cont = Input(shape=(number_of_pupcandis, n_features-2), name='input_cont')
     pxpy = Input(shape=(number_of_pupcandis, 2), name='input_pxpy')
+
     embeddings = []
     inputs = [inputs_cont, pxpy]
     for i_emb in range(n_features_cat):
@@ -176,55 +176,7 @@ class weighted_sum_layer(Layer):
     def call(self, inputs):
         return tf.reduce_sum(inputs, axis=1)
 
-class ConcreteSelect(Layer):
-
-
-    def __init__(self, output_dim, start_temp = 10.0, min_temp = 0.1, alpha = 0.99999, **kwargs):
-        self.output_dim = output_dim
-        self.start_temp = start_temp
-        self.min_temp = min_temp
-        self.alpha = alpha
-        super(ConcreteSelect, self).__init__(**kwargs)
-    
-
-    def build(self, input_shape):
-        self.temp = self.add_weight(name = 'temp', shape = [], initializer = initializers.Constant(self.start_temp), trainable = False)
-        shape = (self.output_dim, input_shape[2])
-        self.logits = self.add_weight(name = 'logits', shape = (self.output_dim, input_shape[2]), initializer = initializers.glorot_normal(), trainable = True)      # (:, selected features, all features)
-        super(ConcreteSelect, self).build(input_shape)
-    
-
-    def call(self, X, training = None):
-        uniform = K.random_uniform(self.logits.shape, K.epsilon(), 1.0)
-        gumbel = -K.log(-K.log(uniform))
-        temp = K.update(self.temp, K.maximum(self.min_temp, self.temp * self.alpha))
-        noisy_logits = (self.logits + gumbel) / temp
-        samples = K.softmax(noisy_logits)
-    
-
-        discrete_logits = K.one_hot(K.argmax(self.logits), self.logits.shape[1])
-    
-
-        self.selections = K.in_train_phase(samples, discrete_logits, training)
-        Y = K.dot(X, K.transpose(self.selections))
-    
-
-        return Y
-    
-    def get_config(self):
-        cfg = super(ConcreteSelect, self).get_config()
-        cfg['output_dim'] = self.output_dim
-        cfg['start_temp'] = self.start_temp
-        cfg['min_temp'] = self.min_temp
-        cfg['alpha'] = self.alpha
-        return cfg
-
-def graph_embedding(compute_ef, num_epochs, output_dim,
-                    batch_size=256,
-                    n_features=6,
-                    min_temp=0.01,
-                    start_temp=10.0,
-                    alpha=0.9999,
+def graph_embedding(compute_ef, n_features=6,
                     n_features_cat=2,
                     activation='relu',
                     number_of_pupcandis=100,
@@ -232,7 +184,6 @@ def graph_embedding(compute_ef, num_epochs, output_dim,
                     emb_out_dim=8,
                     units=[64, 32, 16],
                     edge_list=[]):
-
     n_dense_layers = len(units)
     name = 'met'
 
@@ -241,17 +192,8 @@ def graph_embedding(compute_ef, num_epochs, output_dim,
 
     embeddings = []
     inputs = [inputs_cont, pxpy]
-    for i_emb in range(n_features_cat):
-        input_cat = Input(shape=(number_of_pupcandis, ), name='input_cat{}'.format(i_emb))
-        inputs.append(input_cat)
-        embedding = Embedding(
-            input_dim=embedding_input_dim[i_emb],
-            output_dim=emb_out_dim,
-            embeddings_initializer=initializers.RandomNormal(
-                mean=0,
-                stddev=0.4/emb_out_dim),
-            name='embedding{}'.format(i_emb))(input_cat)
-        embeddings.append(embedding)
+    input_cat = Input(shape=(number_of_pupcandis, 2), name='input_cat')
+    inputs.append(input_cat)
 
     N = number_of_pupcandis
     Nr = N*(N-1)
@@ -262,13 +204,12 @@ def graph_embedding(compute_ef, num_epochs, output_dim,
 
     # can concatenate all 3 if updated in hls4ml, for now; do it pairwise
     # x = Concatenate()([inputs_cont] + embeddings)
-    emb_concat = Concatenate()(embeddings)
-    x = Concatenate()([inputs_cont, emb_concat])
+    #emb_concat = Concatenate()(embeddings)
+    x = Concatenate()([inputs_cont, input_cat])
 
     N = number_of_pupcandis
     P = n_features+n_features_cat
     Nr = N*(N-1)  # number of relations (edges)
-
 
     x = BatchNormalization()(x)
 
@@ -283,16 +224,10 @@ def graph_embedding(compute_ef, num_epochs, output_dim,
 
     # Edges MLP
     h = Permute((2, 1), input_shape=node_feat.shape[1:])(node_feat)
-
     edge_units = [64, 32, 16]
     n_edge_dense_layers = len(edge_units)
     if compute_ef == 1:
         h = Concatenate(axis=2, name='concatenate_edge')([h, edge_feat])
-    
-    steps_per_epoch = batch_size
-    alpha = np.exp(np.log(min_temp / start_temp) / (num_epochs * steps_per_epoch))   
-    h = ConcreteSelect(output_dim=output_dim, start_temp=start_temp, min_temp=min_temp, alpha=alpha, name = 'concrete_select')(h)
-    
     for i_dense in range(n_edge_dense_layers):
         h = Dense(edge_units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(h)
         h = BatchNormalization(momentum=0.95)(h)
