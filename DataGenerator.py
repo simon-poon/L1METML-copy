@@ -180,13 +180,13 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
             return Xr, Yr
 
         else:
-            Xc = [Xc1, Xc2]
+            Xc = np.stack([Xc1, Xc2], axis=-1)
             # dimension parameter for keras model
             self.emb_input_dim = {i: int(np.max(Xc[i][0:1000])) + 1 for i in range(self.n_features_pf_cat)}
 
             # Prepare training/val data
             Yr = Y
-            Xr = [Xi, Xp] + Xc
+            Xr = [Xi, Xp] + [Xc]
             return Xr, Yr
 
     def __get_features_labels(self, ifile, entry_start, entry_stop):
