@@ -241,17 +241,8 @@ def graph_embedding(compute_ef, num_epochs, output_dim,
 
     embeddings = []
     inputs = [inputs_cont, pxpy]
-    for i_emb in range(n_features_cat):
-        input_cat = Input(shape=(number_of_pupcandis, ), name='input_cat{}'.format(i_emb))
-        inputs.append(input_cat)
-        embedding = Embedding(
-            input_dim=embedding_input_dim[i_emb],
-            output_dim=emb_out_dim,
-            embeddings_initializer=initializers.RandomNormal(
-                mean=0,
-                stddev=0.4/emb_out_dim),
-            name='embedding{}'.format(i_emb))(input_cat)
-        embeddings.append(embedding)
+    input_cat = Input(shape=(number_of_pupcandis, 2), name='input_cat')
+    inputs.append(input_cat)
 
     N = number_of_pupcandis
     Nr = N*(N-1)
@@ -262,8 +253,8 @@ def graph_embedding(compute_ef, num_epochs, output_dim,
 
     # can concatenate all 3 if updated in hls4ml, for now; do it pairwise
     # x = Concatenate()([inputs_cont] + embeddings)
-    emb_concat = Concatenate()(embeddings)
-    x = Concatenate()([inputs_cont, emb_concat])
+    #emb_concat = Concatenate()(embeddings)
+    x = Concatenate()([inputs_cont, input_cat])
 
     N = number_of_pupcandis
     P = n_features+n_features_cat
@@ -290,7 +281,7 @@ def graph_embedding(compute_ef, num_epochs, output_dim,
         h = Concatenate(axis=2, name='concatenate_edge')([h, edge_feat])
     
     steps_per_epoch = batch_size
-    alpha = np.exp(np.log(min_temp / start_temp) / (num_epochs * steps_per_epoch))   
+    alpha = np.exp(np.log(min_temp / start_temp) / (100 * steps_per_epoch))   
     h = ConcreteSelect(output_dim=output_dim, start_temp=start_temp, min_temp=min_temp, alpha=alpha, name = 'concrete_select')(h)
     
     for i_dense in range(n_edge_dense_layers):
