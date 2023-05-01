@@ -170,7 +170,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
                 edge_stack.append(m2)
             ef = np.stack(edge_stack, axis=-1)
 
-            Xc = [Xc1, Xc2]
+            Xc = np.stack([Xc1, Xc2], axis=-1)
             # dimension parameter for keras model
             self.emb_input_dim = {i: int(np.max(Xc[i][0:1000])) + 1 for i in range(self.n_features_pf_cat)}
 
