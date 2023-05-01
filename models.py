@@ -192,17 +192,10 @@ def graph_embedding(compute_ef, n_features=6,
 
     embeddings = []
     inputs = [inputs_cont, pxpy]
-    for i_emb in range(n_features_cat):
-        input_cat = Input(shape=(number_of_pupcandis, ), name='input_cat{}'.format(i_emb))
-        inputs.append(input_cat)
-        embedding = Embedding(
-            input_dim=embedding_input_dim[i_emb],
-            output_dim=emb_out_dim,
-            embeddings_initializer=initializers.RandomNormal(
-                mean=0,
-                stddev=0.4/emb_out_dim),
-            name='embedding{}'.format(i_emb))(input_cat)
-        embeddings.append(embedding)
+    input_cat1 = Input(shape=(number_of_pupcandis, ), name='input_cat{}'.format(i_emb))
+    input_cat2 = Input(shape=(number_of_pupcandis, ), name='input_cat{}'.format(i_emb))
+    inputs.append(input_cat1)
+    inputs.append(input_cat2)
 
     N = number_of_pupcandis
     Nr = N*(N-1)
@@ -214,7 +207,7 @@ def graph_embedding(compute_ef, n_features=6,
     # can concatenate all 3 if updated in hls4ml, for now; do it pairwise
     # x = Concatenate()([inputs_cont] + embeddings)
     emb_concat = Concatenate()(embeddings)
-    x = Concatenate()([inputs_cont, emb_concat])
+    x = Concatenate()([inputs_cont, input_cat1, input_cat2])
 
     N = number_of_pupcandis
     P = n_features+n_features_cat
@@ -226,9 +219,9 @@ def graph_embedding(compute_ef, n_features=6,
     x = Permute((2, 1), input_shape=x.shape[1:])(x)
 
     # Marshaling function
-    #ORr = Dense(Nr, use_bias=False, trainable=False, name='tmul_{}_1'.format(name))(x)  # Receiving adjacency matrix
+    ORr = Dense(Nr, use_bias=False, trainable=False, name='tmul_{}_1'.format(name))(x)  # Receiving adjacency matrix
     ORs = Dense(Nr, use_bias=False, trainable=False, name='tmul_{}_2'.format(name))(x)  # Sending adjacency matrix
-    node_feat = ORs  # Concatenates Or and Os  ( no relations features Ra matrix )
+    node_feat = Concatenate(axis=1)([ORr, ORs])  # Concatenates Or and Os  ( no relations features Ra matrix )
     # Outputis new array = [batch, 2x features, edges]
 
     # Edges MLP
@@ -272,7 +265,7 @@ def graph_embedding(compute_ef, n_features=6,
 
     # Create a fully connected adjacency matrix
     Rs, Rr = assign_matrices(N, Nr)
-    #keras_model.get_layer('tmul_{}_1'.format(name)).set_weights([Rr])
+    keras_model.get_layer('tmul_{}_1'.format(name)).set_weights([Rr])
     keras_model.get_layer('tmul_{}_2'.format(name)).set_weights([Rs])
     keras_model.get_layer('tmul_{}_3'.format(name)).set_weights([np.transpose(Rr)])
 
