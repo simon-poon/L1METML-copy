@@ -176,7 +176,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
 
             # Prepare training/val data
             Yr = Y
-            Xr = [Xi, Xp] + Xc + [ef]
+            Xr = [Xi, Xp] + [Xc] + [ef]
             return Xr, Yr
 
         else:
