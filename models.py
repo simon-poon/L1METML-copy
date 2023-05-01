@@ -206,7 +206,7 @@ def graph_embedding(compute_ef, n_features=6,
 
     # can concatenate all 3 if updated in hls4ml, for now; do it pairwise
     # x = Concatenate()([inputs_cont] + embeddings)
-    emb_concat = Concatenate()(embeddings)
+    #emb_concat = Concatenate()(embeddings)
     x = Concatenate()([inputs_cont, input_cat1, input_cat2])
 
     N = number_of_pupcandis
