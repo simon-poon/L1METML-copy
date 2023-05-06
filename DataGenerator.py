@@ -131,6 +131,10 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
         Y = self.y / (-self.normFac)
         Xi, Xp, Xc1, Xc2 = preProcessing(self.X, self.normFac)
 
+        Xi_pt = Xi[:,:,0:1]
+        Xi_puppi = Xi[:,:,3:4]
+        Xi = np.concatenate((Xi_pt, Xi_puppi), axis=-1)
+        
         N = self.maxNPF
         Nr = N*(N-1)
 
@@ -170,23 +174,23 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
                 edge_stack.append(m2)
             ef = np.stack(edge_stack, axis=-1)
 
-            Xc = np.stack([Xc1, Xc2], axis=-1)
+            Xc = [Xc1, Xc2]
             # dimension parameter for keras model
             self.emb_input_dim = {i: int(np.max(Xc[i][0:1000])) + 1 for i in range(self.n_features_pf_cat)}
 
             # Prepare training/val data
             Yr = Y
-            Xr = [Xi, Xp] + [Xc] + [ef]
+            Xr = [Xi, Xp] + Xc + [ef]
             return Xr, Yr
 
         else:
-            Xc = np.stack([Xc1, Xc2], axis=-1)
+            Xc = [Xc1, Xc2]
             # dimension parameter for keras model
             self.emb_input_dim = {i: int(np.max(Xc[i][0:1000])) + 1 for i in range(self.n_features_pf_cat)}
 
             # Prepare training/val data
             Yr = Y
-            Xr = [Xi, Xp] + [Xc]
+            Xr = [Xi, Xp] + Xc
             return Xr, Yr
 
     def __get_features_labels(self, ifile, entry_start, entry_stop):
