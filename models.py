@@ -187,7 +187,7 @@ def graph_embedding(compute_ef, n_features=6,
     n_dense_layers = len(units)
     name = 'met'
 
-    inputs_cont = Input(shape=(number_of_pupcandis, n_features-2), name='input_cont')
+    inputs_cont = Input(shape=(number_of_pupcandis, 2), name='input_cont')
     pxpy = Input(shape=(number_of_pupcandis, 2), name='input_pxpy')
 
     embeddings = []
