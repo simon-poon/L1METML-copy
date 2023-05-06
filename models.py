@@ -192,8 +192,17 @@ def graph_embedding(compute_ef, n_features=6,
 
     embeddings = []
     inputs = [inputs_cont, pxpy]
-    input_cat = Input(shape=(number_of_pupcandis, 2), name='input_cat')
-    inputs.append(input_cat)
+    for i_emb in range(n_features_cat):
+        input_cat = Input(shape=(number_of_pupcandis, ), name='input_cat{}'.format(i_emb))
+        inputs.append(input_cat)
+        embedding = Embedding(
+            input_dim=embedding_input_dim[i_emb],
+            output_dim=emb_out_dim,
+            embeddings_initializer=initializers.RandomNormal(
+                mean=0,
+                stddev=0.4/emb_out_dim),
+            name='embedding{}'.format(i_emb))(input_cat)
+        embeddings.append(embedding)
 
     N = number_of_pupcandis
     Nr = N*(N-1)
@@ -204,8 +213,8 @@ def graph_embedding(compute_ef, n_features=6,
 
     # can concatenate all 3 if updated in hls4ml, for now; do it pairwise
     # x = Concatenate()([inputs_cont] + embeddings)
-    #emb_concat = Concatenate()(embeddings)
-    x = Concatenate()([inputs_cont, input_cat])
+    emb_concat = Concatenate()(embeddings)
+    x = Concatenate()([inputs_cont, emb_concat])
 
     N = number_of_pupcandis
     P = n_features+n_features_cat
