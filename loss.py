@@ -54,9 +54,6 @@ def custom_loss(y_true, y_pred):
         quadratic_region = 0.5 * tf.square(abs_error)
         linear_region = delta * abs_error - 0.5 * tf.square(delta)
         loss = tf.where(abs_error < delta, quadratic_region, linear_region)
-        tf.print()
-        tf.print("---------------")
-        tf.print(loss)
         return tf.reduce_mean(loss)
 
     def quantile_loss(y_true, y_pred, tau):
