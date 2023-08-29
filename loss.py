@@ -1,3 +1,7 @@
+import tensorflow.keras.backend as K
+import tensorflow as tf
+import numpy as np
+
 def custom_loss(y_true, y_pred):
 
     import tensorflow.keras.backend as K
@@ -8,8 +12,8 @@ def custom_loss(y_true, y_pred):
     px_pred = K.flatten(y_pred[:, 0])
     py_pred = K.flatten(y_pred[:, 1])
 
-    pt_truth = K.sqrt(px_truth*px_truth + py_truth*py_truth)
-    pt_pred = K.sqrt(px_pred*px_pred + py_pred*py_pred)
+    pt_truth = K.sqrt(px_truth*px_truth + py_truth*py_truth + 1e-12)
+    pt_pred = K.sqrt(px_pred*px_pred + py_pred*py_pred + 1e-12)
 
     upar_pred = pt_pred - pt_truth
     pt_cut = pt_truth > 0.
@@ -49,7 +53,10 @@ def custom_loss(y_true, y_pred):
         abs_error = tf.abs(error)
         quadratic_region = 0.5 * tf.square(abs_error)
         linear_region = delta * abs_error - 0.5 * tf.square(delta)
-        loss = tf.where(abs_error <= delta, quadratic_region, linear_region)
+        loss = tf.where(abs_error < delta, quadratic_region, linear_region)
+        tf.print()
+        tf.print("---------------")
+        tf.print(loss)
         return tf.reduce_mean(loss)
 
     def quantile_loss(y_true, y_pred, tau):
@@ -63,10 +70,8 @@ def custom_loss(y_true, y_pred):
  
     def calculate_quantile(predictions, quantile):
         sorted_predictions = tf.sort(predictions)
-        print(tf.shape(sorted_predictions)[0].numpy())
-        print(quantile)
-        print(tf.cast(quantile,tf.float64))
-        index = int(tf.shape(sorted_predictions)[0] * tf.cast(quantile,tf.float64))
+        index = tf.cast(tf.shape(sorted_predictions)[0], tf.float32) * tf.cast(quantile, tf.float32)
+        index = tf.cast(index, tf.int64)
         quantile_value = sorted_predictions[index]
         return quantile_value
 
@@ -74,8 +79,8 @@ def custom_loss(y_true, y_pred):
     pt_pred_75 = calculate_quantile(pt_pred,tau_75)
     
     huber_loss_value = huber_loss(pt_truth, pt_pred, delta)
-    quantile_loss_25 = quantile_loss(pt_truth, y_pred_25, tau_25)
-    quantile_loss_75 = quantile_loss(pt_truth, y_pred_75, tau_75)
+    quantile_loss_25 = quantile_loss(pt_truth, pt_pred_25, tau_25)
+    quantile_loss_75 = quantile_loss(pt_truth, pt_pred_75, tau_75)
     
     complete_loss_value = huber_loss_value + quantile_loss_25 + quantile_loss_75
     complete_loss_value += 5000.*dev
