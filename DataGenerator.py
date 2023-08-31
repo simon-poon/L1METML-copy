@@ -130,7 +130,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
         # process inputs
         Y = self.y / (-self.normFac)
         Xi, Xp, Xc1, Xc2 = preProcessing(self.X, self.normFac)
-
+        
         N = self.maxNPF
         Nr = N*(N-1)
 
@@ -174,6 +174,10 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
             # dimension parameter for keras model
             self.emb_input_dim = {i: int(np.max(Xc[i][0:1000])) + 1 for i in range(self.n_features_pf_cat)}
 
+            
+            Xi_pt = Xi[:,:,0:1]
+            Xi_puppi = Xi[:,:,3:4]
+            Xi = np.concatenate((Xi_pt, Xi_puppi), axis=-1)
             # Prepare training/val data
             Yr = Y
             Xr = [Xi, Xp] + Xc + [ef]
