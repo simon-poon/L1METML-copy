@@ -48,17 +48,20 @@ def custom_loss(y_true, y_pred):
 
     #dev /= norm
 
-    def huber_loss(y_true, y_pred, delta=1.0):
-        error = y_true - y_pred
-        abs_error = tf.abs(error)
-        quadratic_region = 0.5 * tf.square(abs_error)
-        linear_region = delta * abs_error - 0.5 * tf.square(delta)
-        loss = tf.where(abs_error < delta, quadratic_region, linear_region)
+    def huber_loss(px_true, px_pred, py_true, py_pred, delta=1.0):
+        px_error = px_true - px_pred
+        py_error = py_true - py_pred
+        px_abs_error = tf.abs(px_error)
+        py_abs_error = tf.abs(py_error)
+        quadratic_region = 0.5 * tf.square(px_abs_error) + tf.square(py_abs_error)
+        linear_region = delta * px_abs_error + delta * py_abs_error - 0.5 * tf.square(delta)
+        loss = tf.where(px_abs_error + py_abs_error < delta, quadratic_region, linear_region)
         return tf.reduce_mean(loss)
 
-    def quantile_loss(y_true, y_pred, tau):
-        error = y_true - y_pred
-        loss = tf.where(error > 0, tau * error, (tau - 1) * error)
+    def quantile_loss(px_true, px_pred, py_true, py_pred, tau):
+        px_error = px_true - px_pred
+        py_error = py_true - py_pred
+        loss = tf.where(px_error + py_error > 0, tau * (px_error + py_error), (tau - 1) * (px_error + py_error))
         return tf.reduce_mean(loss)
 
     delta = 1.0  # Huber loss delta
@@ -72,12 +75,14 @@ def custom_loss(y_true, y_pred):
         quantile_value = sorted_predictions[index]
         return quantile_value
 
-    pt_pred_25 = calculate_quantile(pt_pred,tau_25)
-    pt_pred_75 = calculate_quantile(pt_pred,tau_75)
+    px_pred_25 = calculate_quantile(px_pred,tau_25)
+    px_pred_75 = calculate_quantile(px_pred,tau_75)
+    py_pred_25 = calculate_quantile(py_pred,tau_25)
+    py_pred_75 = calculate_quantile(py_pred,tau_75)
     
-    huber_loss_value = huber_loss(pt_truth, pt_pred, delta)
-    quantile_loss_25 = quantile_loss(pt_truth, pt_pred_25, tau_25)
-    quantile_loss_75 = quantile_loss(pt_truth, pt_pred_75, tau_75)
+    huber_loss_value = huber_loss(px_truth, px_pred, py_truth, py_pred, delta)
+    quantile_loss_25 = quantile_loss(px_truth, px_pred, py_truth, py_pred, tau_25)
+    quantile_loss_75 = quantile_loss(px_truth, px_pred, py_truth, py_pred, tau_75)
     
     complete_loss_value = huber_loss_value + quantile_loss_25 + quantile_loss_75
     #complete_loss_value += 5000.*dev
