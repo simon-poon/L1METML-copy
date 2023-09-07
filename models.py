@@ -9,6 +9,66 @@ from qkeras.qlayers import QDense, QActivation
 import numpy as np
 import itertools
 
+from tensorflow.keras.layers import Layer
+
+class weighted_sum_layer(Layer):
+    '''Either does weight times inputs
+    or weight times inputs + bias
+    Input to be provided as:
+      - Weights
+      - ndim biases (if applicable)
+      - ndim items to sum
+    Currently works for 3-dim input, summing over the 2nd axis'''
+    #def __init__(self, ndim=2, with_bias=False, **kwargs):
+    #    super(weighted_sum_layer, self).__init__(**kwargs)
+    #    self.with_bias = with_bias
+    #    self.ndim = ndim
+#
+    #def get_config(self):
+    #    cfg = super(weighted_sum_layer, self).get_config()
+    #    cfg['ndim'] = self.ndim
+    #    cfg['with_bias'] = self.with_bias
+    #    return cfg
+
+    def call(self, inputs):
+        return tf.reduce_sum(inputs, axis=1)
+
+class quantile_multiply_layer(Layer):
+    '''Either does weight times inputs
+    or weight times inputs + bias
+    Input to be provided as:
+      - Weights
+      - ndim biases (if applicable)
+      - ndim items to sum
+    Currently works for 3-dim input, summing over the 2nd axis'''
+    #def __init__(self, ndim=2, with_bias=False, **kwargs):
+    #    super(weighted_sum_layer, self).__init__(**kwargs)
+    #    self.with_bias = with_bias
+    #    self.ndim = ndim
+#
+    #def get_config(self):
+    #    cfg = super(weighted_sum_layer, self).get_config()
+    #    cfg['ndim'] = self.ndim
+    #    cfg['with_bias'] = self.with_bias
+    #    return cfg
+
+    def call(self, weights, pxpy):
+        px = tf.gather(pxpy, [0], axis=-1)
+        py = tf.gather(pxpy, [1], axis=-1)
+
+        px_adj = tf.math.multiply(weights,px)
+        py_adj = tf.math.multiply(weights,py)
+
+        px_mean = tf.gather(px_adj,[0], axis=-1)
+        px_25 = tf.gather(px_adj,[1], axis=-1)
+        px_75 = tf.gather(px_adj,[2], axis=-1)
+        py_mean = tf.gather(py_adj,[0], axis=-1)
+        py_25 = tf.gather(py_adj,[1], axis=-1)
+        py_75 = tf.gather(py_adj,[2], axis=-1)
+
+        output = tf.concat([px_mean,py_mean,px_25,py_25,px_75,py_75],axis=-1)
+
+        return output
 
 def dense_embedding(n_features=6,
                     n_features_cat=2,
@@ -56,16 +116,15 @@ def dense_embedding(n_features=6,
         if with_bias:
             b = Dense(2, name='met_bias', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
             pxpy = Add()([pxpy, b])
-        w = Dense(1, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
+        w = Dense(3, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
         w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
-        x = Multiply()([w, pxpy])
-
-        x = GlobalAveragePooling1D(name='output')(x)
+        x = quantile_multiply_layer()(w, pxpy)
+        x = weighted_sum_layer(name='output')(x)
     outputs = x
 
     keras_model = Model(inputs=inputs, outputs=outputs)
 
-    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1.]), np.array([-1.]), np.array([0.]), np.array([1.])])
+    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1., 1., 1.]), np.array([-1., -1., -1.]), np.array([0., 0., 0.]), np.array([1., 1., 1.])])
 
     return keras_model
 
@@ -151,30 +210,7 @@ def assign_matrices(N, Nr):
         Rs[s, i] = 1
     return Rs, Rr
 
-import tensorflow as tf
-from tensorflow.keras.layers import Layer
 
-class weighted_sum_layer(Layer):
-    '''Either does weight times inputs
-    or weight times inputs + bias
-    Input to be provided as:
-      - Weights
-      - ndim biases (if applicable)
-      - ndim items to sum
-    Currently works for 3-dim input, summing over the 2nd axis'''
-    #def __init__(self, ndim=2, with_bias=False, **kwargs):
-    #    super(weighted_sum_layer, self).__init__(**kwargs)
-    #    self.with_bias = with_bias
-    #    self.ndim = ndim
-#
-    #def get_config(self):
-    #    cfg = super(weighted_sum_layer, self).get_config()
-    #    cfg['ndim'] = self.ndim
-    #    cfg['with_bias'] = self.with_bias
-    #    return cfg
-
-    def call(self, inputs):
-        return tf.reduce_sum(inputs, axis=1)
 
 def graph_embedding(compute_ef, n_features=6,
                     n_features_cat=2,
