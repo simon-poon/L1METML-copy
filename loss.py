@@ -11,6 +11,10 @@ def custom_loss(y_true, y_pred):
     py_truth = K.flatten(y_true[:, 1])
     px_pred = K.flatten(y_pred[:, 0])
     py_pred = K.flatten(y_pred[:, 1])
+    px_pred_25 = K.flatten(y_pred[:, 2])
+    py_pred_25 = K.flatten(y_pred[:, 3])
+    px_pred_75 = K.flatten(y_pred[:, 4])
+    py_pred_75 = K.flatten(y_pred[:, 5])
 
     pt_truth = K.sqrt(px_truth*px_truth + py_truth*py_truth + 1e-12)
     pt_pred = K.sqrt(px_pred*px_pred + py_pred*py_pred + 1e-12)
@@ -58,32 +62,22 @@ def custom_loss(y_true, y_pred):
         loss = tf.where(px_abs_error + py_abs_error < delta, quadratic_region, linear_region)
         return tf.reduce_mean(loss)
 
-    def quantile_loss(px_true, px_pred, py_true, py_pred, tau):
-        px_error = px_true - px_pred
-        py_error = py_true - py_pred
-        loss = tf.where(px_error + py_error > 0, tau * (px_error + py_error), (tau - 1) * (px_error + py_error))
+    def quantile_loss(y_true,y_quant,tau):
+        z = y_true - y_quant
+        loss = tf.where(z > 0, tau * z, (tau - 1) * z)
         return tf.reduce_mean(loss)
 
     delta = 1.0  # Huber loss delta
     tau_25 = 0.25  # 25% quantile
     tau_75 = 0.75  # 75% quantile
  
-    def calculate_quantile(predictions, quantile):
-        sorted_predictions = tf.sort(predictions)
-        index = tf.cast(tf.shape(sorted_predictions)[0], tf.float32) * tf.cast(quantile, tf.float32)
-        index = tf.cast(index, tf.int64)
-        quantile_value = sorted_predictions[index]
-        return quantile_value
-
-    px_pred_25 = calculate_quantile(px_pred,tau_25)
-    px_pred_75 = calculate_quantile(px_pred,tau_75)
-    py_pred_25 = calculate_quantile(py_pred,tau_25)
-    py_pred_75 = calculate_quantile(py_pred,tau_75)
     
     huber_loss_value = huber_loss(px_truth, px_pred, py_truth, py_pred, delta)
-    quantile_loss_25 = quantile_loss(px_truth, px_pred, py_truth, py_pred, tau_25)
-    quantile_loss_75 = quantile_loss(px_truth, px_pred, py_truth, py_pred, tau_75)
+    px_quantile_loss_25 = quantile_loss(px_truth, px_pred_25, tau_25)
+    px_quantile_loss_75 = quantile_loss(px_truth, px_pred_75, tau_75)
+    py_quantile_loss_25 = quantile_loss(py_truth, py_pred_25, tau_25)
+    py_quantile_loss_75 = quantile_loss(py_truth, py_pred_75, tau_75)
     
-    complete_loss_value = huber_loss_value + quantile_loss_25 + quantile_loss_75
+    complete_loss_value = huber_loss_value + px_quantile_loss_25 + px_quantile_loss_75 + py_quantile_loss_25 + py_quantile_loss_75
     #complete_loss_value += 5000.*dev
     return complete_loss_value
