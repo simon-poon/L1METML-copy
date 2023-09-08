@@ -84,9 +84,5 @@ def custom_loss(y_true, y_pred):
     
     complete_loss_value = huber_loss_value + px_quantile_loss_25 + px_quantile_loss_75 + py_quantile_loss_25 + py_quantile_loss_75
     #complete_loss_value += 5000.*dev
-    tf.print('loss_value')
-    tf.print(complete_loss_value)
-    tf.print('dev')
-    tf.print(dev)
     loss = 160.*dev + complete_loss_value
     return loss
