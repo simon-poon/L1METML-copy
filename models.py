@@ -296,15 +296,15 @@ def graph_embedding(compute_ef, n_features=6,
         h = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(h)
         h = BatchNormalization(momentum=0.95)(h)
         h = Activation(activation=activation)(h)
-    w = Dense(1, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(h)
+    w = Dense(3, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(h)
     w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
-    x = Multiply()([w, pxpy])
+    x = quantile_multiply_layer()(w, pxpy)
     outputs = weighted_sum_layer(name='output')(x)
     #outputs = GlobalAveragePooling1D(name='output')(x)
 
     keras_model = Model(inputs=inputs, outputs=outputs)
 
-    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1.]), np.array([-1.]), np.array([0.]), np.array([1.])])
+    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1., 1., 1.]), np.array([-1., -1., -1.]), np.array([0., 0., 0.]), np.array([1., 1., 1.])])
 
     # Create a fully connected adjacency matrix
     Rs, Rr = assign_matrices(N, Nr)
