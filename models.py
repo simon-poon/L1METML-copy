@@ -9,6 +9,7 @@ from qkeras.qlayers import QDense, QActivation
 import numpy as np
 import itertools
 
+import tensorflow as tf
 from tensorflow.keras.layers import Layer
 
 class weighted_sum_layer(Layer):
@@ -52,7 +53,7 @@ class quantile_multiply_layer(Layer):
     #    cfg['with_bias'] = self.with_bias
     #    return cfg
 
-    def call(self, weights, pxpy):
+    def call(self, pxpy, pxpy_25, pxpy_75):
         px = tf.gather(pxpy, [0], axis=-1)
         py = tf.gather(pxpy, [1], axis=-1)
 
@@ -116,15 +117,22 @@ def dense_embedding(n_features=6,
         if with_bias:
             b = Dense(2, name='met_bias', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
             pxpy = Add()([pxpy, b])
-        w = Dense(3, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
+        w = Dense(1, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
         w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
-        x = quantile_multiply_layer()(w, pxpy)
-        x = weighted_sum_layer(name='output')(x)
+        x = Multiply()([w, pxpy])
+        x_quant = x
+    for i_dense in [32,16,4]:
+        x_quant = Dense(i_dense, activation='linear', kernel_initializer='lecun_uniform')(x_quant)
+        x_quant = BatchNormalization(momentum=0.95)(x_quant)
+        x_quant = Activation(activation=activation)(x_quant)
+    x = Concatenate()([x, x_quant])
+    x = weighted_sum_layer(name='output')(x)
+
     outputs = x
 
     keras_model = Model(inputs=inputs, outputs=outputs)
 
-    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1., 1., 1.]), np.array([-1., -1., -1.]), np.array([0., 0., 0.]), np.array([1., 1., 1.])])
+    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1.]), np.array([-1.]), np.array([0.]), np.array([1.])])
 
     return keras_model
 
@@ -210,8 +218,6 @@ def assign_matrices(N, Nr):
         Rs[s, i] = 1
     return Rs, Rr
 
-
-
 def graph_embedding(compute_ef, n_features=6,
                     n_features_cat=2,
                     activation='relu',
@@ -296,15 +302,21 @@ def graph_embedding(compute_ef, n_features=6,
         h = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(h)
         h = BatchNormalization(momentum=0.95)(h)
         h = Activation(activation=activation)(h)
-    w = Dense(3, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(h)
+    w = Dense(1, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(h)
     w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
-    x = quantile_multiply_layer()(w, pxpy)
+    x = Multiply()([w, pxpy])
+    x_quant = x
+    for i_dense in [32,16,4]:
+        x_quant = Dense(i_dense, activation='linear', kernel_initializer='lecun_uniform')(x_quant)
+        x_quant = BatchNormalization(momentum=0.95)(x_quant)
+        x_quant = Activation(activation=activation)(x_quant)
+    x = Concatenate()([x, x_quant])
     outputs = weighted_sum_layer(name='output')(x)
     #outputs = GlobalAveragePooling1D(name='output')(x)
 
     keras_model = Model(inputs=inputs, outputs=outputs)
 
-    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1., 1., 1.]), np.array([-1., -1., -1.]), np.array([0., 0., 0.]), np.array([1., 1., 1.])])
+    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1.]), np.array([-1.]), np.array([0.]), np.array([1.])])
 
     # Create a fully connected adjacency matrix
     Rs, Rr = assign_matrices(N, Nr)
