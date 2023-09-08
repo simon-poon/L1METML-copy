@@ -84,5 +84,5 @@ def custom_loss(y_true, y_pred):
     
     complete_loss_value = huber_loss_value + px_quantile_loss_25 + px_quantile_loss_75 + py_quantile_loss_25 + py_quantile_loss_75
     #complete_loss_value += 5000.*dev
-    loss = 70.*dev + complete_loss_value
+    loss = 100.*dev + complete_loss_value
     return loss
