@@ -16,49 +16,51 @@ def custom_loss(y_true, y_pred):
     px_pred_75 = K.flatten(y_pred[:, 4])
     py_pred_75 = K.flatten(y_pred[:, 5])
 
-    pt_truth = K.sqrt(px_truth*px_truth + py_truth*py_truth)
+    def resp_cor(pred_px, pred_py, truth_px, truth_py):
+        pt_truth = K.sqrt(truth_px*truth_px + truth_py*truth_py)
 
-    #px_truth1 = px_truth / pt_truth
-    #py_truth1 = py_truth / pt_truth
+        #truth_px1 = truth_px / pt_truth
+        #truth_py1 = truth_py / pt_truth
 
-    # using absolute response
-    # upar_pred = (px_truth1 * px_pred + py_truth1 * py_pred)/pt_truth
-    upar_pred = K.sqrt(px_pred * px_pred + py_pred * py_pred) - pt_truth
-    pt_cut = pt_truth > 0.
-    upar_pred = tf.boolean_mask(upar_pred, pt_cut)
-    pt_truth_filtered = tf.boolean_mask(pt_truth, pt_cut)
+        # using absolute response
+        # upar_pred = (truth_px1 * pred_px + truth_py1 * pred_py)/pt_truth
+        upar_pred = K.sqrt(pred_px * pred_px + pred_py * pred_py) - pt_truth
+        pt_cut = pt_truth > 0.
+        upar_pred = tf.boolean_mask(upar_pred, pt_cut)
+        pt_truth_filtered = tf.boolean_mask(pt_truth, pt_cut)
 
-    #filter_bin0 = pt_truth_filtered < 50.
-    filter_bin0 = tf.logical_and(pt_truth_filtered > 50.,  pt_truth_filtered < 100.)
-    filter_bin1 = tf.logical_and(pt_truth_filtered > 100., pt_truth_filtered < 200.)
-    filter_bin2 = tf.logical_and(pt_truth_filtered > 200., pt_truth_filtered < 300.)
-    filter_bin3 = tf.logical_and(pt_truth_filtered > 300., pt_truth_filtered < 400.)
-    filter_bin4 = pt_truth_filtered > 400.
+        #filter_bin0 = pt_truth_filtered < 50.
+        filter_bin0 = tf.logical_and(pt_truth_filtered > 50.,  pt_truth_filtered < 100.)
+        filter_bin1 = tf.logical_and(pt_truth_filtered > 100., pt_truth_filtered < 200.)
+        filter_bin2 = tf.logical_and(pt_truth_filtered > 200., pt_truth_filtered < 300.)
+        filter_bin3 = tf.logical_and(pt_truth_filtered > 300., pt_truth_filtered < 400.)
+        filter_bin4 = pt_truth_filtered > 400.
 
-    upar_pred_pos_bin0 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin0, upar_pred > 0.))
-    upar_pred_neg_bin0 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin0, upar_pred < 0.))
-    upar_pred_pos_bin1 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin1, upar_pred > 0.))
-    upar_pred_neg_bin1 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin1, upar_pred < 0.))
-    upar_pred_pos_bin2 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin2, upar_pred > 0.))
-    upar_pred_neg_bin2 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin2, upar_pred < 0.))
-    upar_pred_pos_bin3 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin3, upar_pred > 0.))
-    upar_pred_neg_bin3 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin3, upar_pred < 0.))
-    upar_pred_pos_bin4 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin4, upar_pred > 0.))
-    upar_pred_neg_bin4 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin4, upar_pred < 0.))
-    #upar_pred_pos_bin5 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin5, upar_pred > 0.))
-    #upar_pred_neg_bin5 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin5, upar_pred < 0.))
-    norm = tf.reduce_sum(pt_truth_filtered)
-    dev = tf.abs(tf.reduce_sum(upar_pred_pos_bin0) + tf.reduce_sum(upar_pred_neg_bin0))
-    dev += tf.abs(tf.reduce_sum(upar_pred_pos_bin1) + tf.reduce_sum(upar_pred_neg_bin1))
-    dev += tf.abs(tf.reduce_sum(upar_pred_pos_bin2) + tf.reduce_sum(upar_pred_neg_bin2))
-    dev += tf.abs(tf.reduce_sum(upar_pred_pos_bin3) + tf.reduce_sum(upar_pred_neg_bin3))
-    dev += tf.abs(tf.reduce_sum(upar_pred_pos_bin4) + tf.reduce_sum(upar_pred_neg_bin4))
-    #dev += tf.abs(tf.reduce_sum(upar_pred_pos_bin5) + tf.reduce_sum(upar_pred_neg_bin5))
-    dev /= norm
+        upar_pred_pos_bin0 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin0, upar_pred > 0.))
+        upar_pred_neg_bin0 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin0, upar_pred < 0.))
+        upar_pred_pos_bin1 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin1, upar_pred > 0.))
+        upar_pred_neg_bin1 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin1, upar_pred < 0.))
+        upar_pred_pos_bin2 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin2, upar_pred > 0.))
+        upar_pred_neg_bin2 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin2, upar_pred < 0.))
+        upar_pred_pos_bin3 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin3, upar_pred > 0.))
+        upar_pred_neg_bin3 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin3, upar_pred < 0.))
+        upar_pred_pos_bin4 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin4, upar_pred > 0.))
+        upar_pred_neg_bin4 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin4, upar_pred < 0.))
+        #upar_pred_pos_bin5 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin5, upar_pred > 0.))
+        #upar_pred_neg_bin5 = tf.boolean_mask(upar_pred, tf.logical_and(filter_bin5, upar_pred < 0.))
+        norm = tf.reduce_sum(pt_truth_filtered)
+        dev = tf.abs(tf.reduce_sum(upar_pred_pos_bin0) + tf.reduce_sum(upar_pred_neg_bin0))
+        dev += tf.abs(tf.reduce_sum(upar_pred_pos_bin1) + tf.reduce_sum(upar_pred_neg_bin1))
+        dev += tf.abs(tf.reduce_sum(upar_pred_pos_bin2) + tf.reduce_sum(upar_pred_neg_bin2))
+        dev += tf.abs(tf.reduce_sum(upar_pred_pos_bin3) + tf.reduce_sum(upar_pred_neg_bin3))
+        dev += tf.abs(tf.reduce_sum(upar_pred_pos_bin4) + tf.reduce_sum(upar_pred_neg_bin4))
+        #dev += tf.abs(tf.reduce_sum(upar_pred_pos_bin5) + tf.reduce_sum(upar_pred_neg_bin5))
+        dev /= norm
+        return dev
 
-    def huber_loss(px_true, px_pred, py_true, py_pred, delta=1.0):
-        px_error = px_true - px_pred
-        py_error = py_true - py_pred
+    def huber_loss(px_true, pred_px, py_true, pred_py, delta=1.0):
+        px_error = px_true - pred_px
+        py_error = py_true - pred_py
         px_abs_error = tf.abs(px_error)
         py_abs_error = tf.abs(py_error)
         quadratic_region = 0.5 * tf.square(px_abs_error) + tf.square(py_abs_error)
@@ -83,6 +85,9 @@ def custom_loss(y_true, y_pred):
     py_quantile_loss_75 = quantile_loss(py_truth, py_pred_75, tau_75)
     
     complete_loss_value = huber_loss_value + px_quantile_loss_25 + px_quantile_loss_75 + py_quantile_loss_25 + py_quantile_loss_75
+    dev_mean = resp_cor(px_pred, py_pred, px_truth, py_truth)
+    dev_25 = resp_cor(px_pred_25, py_pred_25, px_truth, py_truth)
+    dev_75 = resp_cor(px_pred_75, py_pred_75, px_truth, py_truth)
     #complete_loss_value += 5000.*dev
-    loss = 60.*dev + complete_loss_value
+    loss = 70.*dev_mean + 70.*dev_25 + 70.*dev_75 + complete_loss_value
     return loss
