@@ -21,13 +21,15 @@ def read_input(inputfiles):
 def convertXY2PtPhi(arrayXY):
     # convert from array with [:,0] as X and [:,1] as Y to [:,0] as pt and [:,1] as phi
     nevents = arrayXY.shape[0]
-    arrayPtPhi = np.zeros((nevents, 6))
+    if arrayXY.shape[-1] == 6:
+        arrayPtPhi = np.zeros((nevents, 6))
     arrayPtPhi[:, 0] = np.sqrt((arrayXY[:, 0]**2 + arrayXY[:, 1]**2))
     arrayPtPhi[:, 1] = np.arctan2(arrayXY[:, 1], arrayXY[:, 0])
-    arrayPtPhi[:, 2] = np.sqrt((arrayXY[:, 2]**2 + arrayXY[:, 3]**2))
-    arrayPtPhi[:, 3] = np.arctan2(arrayXY[:, 3], arrayXY[:, 2])
-    arrayPtPhi[:, 4] = np.sqrt((arrayXY[:, 4]**2 + arrayXY[:, 5]**2))
-    arrayPtPhi[:, 5] = np.arctan2(arrayXY[:, 5], arrayXY[:, 4])
+    if arrayXY.shape[-1] == 6:
+        arrayPtPhi[:, 2] = np.sqrt((arrayXY[:, 2]**2 + arrayXY[:, 3]**2))
+        arrayPtPhi[:, 3] = np.arctan2(arrayXY[:, 3], arrayXY[:, 2])
+        arrayPtPhi[:, 4] = np.sqrt((arrayXY[:, 4]**2 + arrayXY[:, 5]**2))
+        arrayPtPhi[:, 5] = np.arctan2(arrayXY[:, 5], arrayXY[:, 4])
     return arrayPtPhi
 
 
