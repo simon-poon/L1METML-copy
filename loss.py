@@ -2,6 +2,21 @@ import tensorflow.keras.backend as K
 import tensorflow as tf
 import numpy as np
 
+def tfconvertXY2PtPhi(arrayXY):
+    # convert from array with [:,0] as X and [:,1] as Y to [:,0] as pt and [:,1] as phi
+    pt_mean = K.sqrt((arrayXY[:, 0]**2 + arrayXY[:, 1]**2) + 1e-10)
+    phi_mean = tf.math.atan2(arrayXY[:, 1], 1e-10 + arrayXY[:, 0])
+    arrayPtPhi = tf.stack([pt_mean,phi_mean],axis=-1)
+    if arrayXY.get_shape()[-1] == 6:
+        pt_25 = K.sqrt((arrayXY[:, 2]**2 + arrayXY[:, 3]**2) + 1e-10)
+        phi_25 = tf.math.atan2(arrayXY[:, 3], 1e-10 + arrayXY[:, 2])
+        pt_75 = K.sqrt((arrayXY[:, 4]**2 + arrayXY[:, 5]**2) + 1e-10)
+        phi_75 = tf.math.atan2(arrayXY[:, 5], 1e-10 + arrayXY[:, 4])
+        arrayPtPhi_quartile = tf.stack([pt_25, phi_25, pt_75, phi_75], axis=-1)
+        arrayPtPhi = tf.concat([arrayPtPhi, arrayPtPhi_quartile], axis=-1)
+    return arrayPtPhi
+
+
 def custom_loss(y_true, y_pred):
 
     import tensorflow.keras.backend as K
@@ -11,20 +26,35 @@ def custom_loss(y_true, y_pred):
     py_truth = K.flatten(y_true[:, 1])
     px_pred = K.flatten(y_pred[:, 0])
     py_pred = K.flatten(y_pred[:, 1])
-    px_pred_25 = K.flatten(y_pred[:, 2])
-    py_pred_25 = K.flatten(y_pred[:, 3])
-    px_pred_75 = K.flatten(y_pred[:, 4])
-    py_pred_75 = K.flatten(y_pred[:, 5])
+    #px_pred_25 = K.flatten(y_pred[:, 2])
+    #py_pred_25 = K.flatten(y_pred[:, 3])
+    #px_pred_75 = K.flatten(y_pred[:, 4])
+    #py_pred_75 = K.flatten(y_pred[:, 5])
 
-    def resp_cor(pred_px, pred_py, truth_px, truth_py):
-        pt_truth = K.sqrt(truth_px*truth_px + truth_py*truth_py)
+    ptphi_truth = tfconvertXY2PtPhi(y_true)
+    pt_truth = ptphi_truth[:,0]
+    phi_truth = ptphi_truth[:,1]
+    ptphi_pred = tfconvertXY2PtPhi(y_pred)
+    pt_pred_mean = ptphi_pred[:,0]
+    phi_pred_mean = ptphi_pred[:,1]
+    pt_pred_25 = ptphi_pred[:,2]
+    phi_pred_25 = ptphi_pred[:,3]
+    pt_pred_75 = ptphi_pred[:,4]
+    phi_pred_75 = ptphi_pred[:,5]
 
-        #truth_px1 = truth_px / pt_truth
-        #truth_py1 = truth_py / pt_truth
+    def resp_cor(pred_px, pred_py, truth_px, truth_py, pxpy=True):
+        if pxpy==True:
+            pt_truth = K.sqrt(truth_px*truth_px + truth_py*truth_py)
 
-        # using absolute response
-        # upar_pred = (truth_px1 * pred_px + truth_py1 * pred_py)/pt_truth
-        upar_pred = K.sqrt(pred_px * pred_px + pred_py * pred_py) - pt_truth
+            #truth_px1 = truth_px / pt_truth
+            #truth_py1 = truth_py / pt_truth
+
+            # using absolute response
+            # upar_pred = (truth_px1 * pred_px + truth_py1 * pred_py)/pt_truth
+            upar_pred = K.sqrt(pred_px * pred_px + pred_py * pred_py) - pt_truth
+        else:
+            pt_truth = truth_px
+            upar_pred = pred_px - pt_truth
         pt_cut = pt_truth > 0.
         upar_pred = tf.boolean_mask(upar_pred, pt_cut)
         pt_truth_filtered = tf.boolean_mask(pt_truth, pt_cut)
@@ -79,15 +109,15 @@ def custom_loss(y_true, y_pred):
  
     
     huber_loss_value = huber_loss(px_truth, px_pred, py_truth, py_pred, delta)
-    px_quantile_loss_25 = quantile_loss(px_truth, px_pred_25, tau_25)
-    px_quantile_loss_75 = quantile_loss(px_truth, px_pred_75, tau_75)
-    py_quantile_loss_25 = quantile_loss(py_truth, py_pred_25, tau_25)
-    py_quantile_loss_75 = quantile_loss(py_truth, py_pred_75, tau_75)
+    pt_quantile_loss_25 = quantile_loss(pt_truth, pt_pred_25, tau_25)
+    pt_quantile_loss_75 = quantile_loss(pt_truth, pt_pred_75, tau_75)
+    phi_quantile_loss_25 = quantile_loss(phi_truth, phi_pred_25, tau_25)
+    phi_quantile_loss_75 = quantile_loss(phi_truth, phi_pred_75, tau_75)
     
-    complete_loss_value = huber_loss_value + px_quantile_loss_25 + px_quantile_loss_75 + py_quantile_loss_25 + py_quantile_loss_75
+    complete_loss_value = huber_loss_value + pt_quantile_loss_25 + pt_quantile_loss_75 + phi_quantile_loss_25 + phi_quantile_loss_75
     dev_mean = resp_cor(px_pred, py_pred, px_truth, py_truth)
-    dev_25 = resp_cor(px_pred_25, py_pred_25, px_truth, py_truth)
-    dev_75 = resp_cor(px_pred_75, py_pred_75, px_truth, py_truth)
+    dev_25 = resp_cor(pt_pred_25, phi_pred_25, pt_truth, phi_truth, pxpy=False)
+    dev_75 = resp_cor(pt_pred_75, phi_pred_75, pt_truth, phi_truth, pxpy=False)
     #complete_loss_value += 5000.*dev
     loss = 70.*dev_mean + 70.*dev_25 + 70.*dev_75 + complete_loss_value
     return loss
