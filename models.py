@@ -46,28 +46,26 @@ class quantile_multiply_layer(Layer):
     #    super(weighted_sum_layer, self).__init__(**kwargs)
     #    self.with_bias = with_bias
     #    self.ndim = ndim
-#
+
     #def get_config(self):
     #    cfg = super(weighted_sum_layer, self).get_config()
     #    cfg['ndim'] = self.ndim
     #    cfg['with_bias'] = self.with_bias
     #    return cfg
 
-    def call(self, pxpy, pxpy_25, pxpy_75):
+    def call(self, weights, pxpy):
         px = tf.gather(pxpy, [0], axis=-1)
         py = tf.gather(pxpy, [1], axis=-1)
 
         px_adj = tf.math.multiply(weights,px)
         py_adj = tf.math.multiply(weights,py)
 
-        px_mean = tf.gather(px_adj,[0], axis=-1)
-        px_25 = tf.gather(px_adj,[1], axis=-1)
-        px_75 = tf.gather(px_adj,[2], axis=-1)
-        py_mean = tf.gather(py_adj,[0], axis=-1)
-        py_25 = tf.gather(py_adj,[1], axis=-1)
-        py_75 = tf.gather(py_adj,[2], axis=-1)
+        px_25 = tf.gather(px_adj,[0], axis=-1)
+        px_75 = tf.gather(px_adj,[1], axis=-1)
+        py_25 = tf.gather(py_adj,[0], axis=-1)
+        py_75 = tf.gather(py_adj,[1], axis=-1)
 
-        output = tf.concat([px_mean,py_mean,px_25,py_25,px_75,py_75],axis=-1)
+        output = tf.concat([px_25,py_25,px_75,py_75],axis=-1)
 
         return output
 
@@ -117,15 +115,14 @@ def dense_embedding(n_features=6,
         if with_bias:
             b = Dense(2, name='met_bias', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
             pxpy = Add()([pxpy, b])
-        w = Dense(1, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
+        w = Dense(2, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
         w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
-        x = Multiply()([w, pxpy])
-        x_quant = x
-    for i_dense in [32,16,4]:
-        x_quant = Dense(i_dense, activation='linear', kernel_initializer='lecun_uniform')(x_quant)
+        x = quantile_multiply_layer()([w, pxpy])
+    for i_dense in [32,16,1]:
+        x_quant = Dense(i_dense, activation='linear', kernel_initializer='lecun_uniform')(x)
         x_quant = BatchNormalization(momentum=0.95)(x_quant)
         x_quant = Activation(activation=activation)(x_quant)
-    x = Concatenate()([x, x_quant])
+    x = Concatenate()([x_quant,x])
     x = weighted_sum_layer(name='output')(x)
 
     outputs = x
