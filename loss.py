@@ -119,5 +119,5 @@ def custom_loss(y_true, y_pred):
     dev_25 = resp_cor(pt_pred_25, phi_pred_25, pt_truth, phi_truth, pxpy=False)
     dev_75 = resp_cor(pt_pred_75, phi_pred_75, pt_truth, phi_truth, pxpy=False)
     #complete_loss_value += 5000.*dev
-    loss = complete_loss_value + 70.*dev_mean + 70.*dev_25 + 70.*dev_75
+    loss = complete_loss_value + 60.*dev_mean + 60.*dev_25 + 60.*dev_75
     return loss
