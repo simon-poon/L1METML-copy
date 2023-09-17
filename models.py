@@ -118,8 +118,9 @@ def dense_embedding(n_features=6,
         w = Dense(2, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
         w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
         x = quantile_multiply_layer()(w, pxpy)
+        x_quant = x
     for i_dense in [32,16,2]:
-        x_quant = Dense(i_dense, activation='linear', kernel_initializer='lecun_uniform')(x)
+        x_quant = Dense(i_dense, activation='linear', kernel_initializer='lecun_uniform')(x_quant)
         x_quant = BatchNormalization(momentum=0.95)(x_quant)
         x_quant = Activation(activation=activation)(x_quant)
     x = Concatenate()([x_quant,x])
