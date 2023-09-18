@@ -116,8 +116,8 @@ def custom_loss(y_true, y_pred):
     
     complete_loss_value = huber_loss_value + pt_quantile_loss_25 + pt_quantile_loss_75 + phi_quantile_loss_25 + phi_quantile_loss_75
     dev_mean = resp_cor(px_pred, py_pred, px_truth, py_truth)
-    dev_25 = resp_cor(pt_pred_25, phi_pred_25, pt_truth, phi_truth, pxpy=False)
-    dev_75 = resp_cor(pt_pred_75, phi_pred_75, pt_truth, phi_truth, pxpy=False)
+    #dev_25 = resp_cor(pt_pred_25, phi_pred_25, pt_truth, phi_truth, pxpy=False)
+    #dev_75 = resp_cor(pt_pred_75, phi_pred_75, pt_truth, phi_truth, pxpy=False)
     #complete_loss_value += 5000.*dev
-    loss = complete_loss_value + 80.*dev_mean + 80.*dev_25 + 80.*dev_75
+    loss = complete_loss_value + 70.*dev_mean
     return loss
