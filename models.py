@@ -11,6 +11,10 @@ import itertools
 
 from tensorflow.keras.layers import Layer
 
+def tanh_plus_one(x):
+    output = K.tanh(x) + 1
+    return output
+
 class weighted_sum_layer(Layer):
     '''Either does weight times inputs
     or weight times inputs + bias
@@ -116,15 +120,17 @@ def dense_embedding(n_features=6,
         if with_bias:
             b = Dense(2, name='met_bias', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
             pxpy = Add()([pxpy, b])
+        tf.keras.utils.get_custom_objects().update({'tanh_plus_one': Activation(tanh_plus_one)})
         w = Dense(3, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
-        w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
+        w = Activation(activation=tanh_plus_one, name='met_weight_minus_one')(w)
+        #w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
         x = quantile_multiply_layer()(w, pxpy)
         x = weighted_sum_layer(name='output')(x)
     outputs = x
 
     keras_model = Model(inputs=inputs, outputs=outputs)
 
-    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1., 1., 1.]), np.array([-1., -1., -1.]), np.array([0., 0., 0.]), np.array([1., 1., 1.])])
+    #keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1., 1., 1.]), np.array([-1., -1., -1.]), np.array([0., 0., 0.]), np.array([1., 1., 1.])])
 
     return keras_model
 
