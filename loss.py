@@ -7,12 +7,12 @@ def tfconvertXY2PtPhi(arrayXY):
     pt_mean = K.sqrt((arrayXY[:, 0]**2 + arrayXY[:, 1]**2) + 1e-10)
     phi_mean = tf.math.atan2(arrayXY[:, 1], 1e-10 + arrayXY[:, 0])
     arrayPtPhi = tf.stack([pt_mean,phi_mean],axis=-1)
-    if arrayXY.get_shape()[-1] == 6:
+    if arrayXY.get_shape()[-1] == 4:
         pt_25 = K.sqrt((arrayXY[:, 2]**2 + arrayXY[:, 3]**2) + 1e-10)
         phi_25 = tf.math.atan2(arrayXY[:, 3], 1e-10 + arrayXY[:, 2])
-        pt_75 = K.sqrt((arrayXY[:, 4]**2 + arrayXY[:, 5]**2) + 1e-10)
-        phi_75 = tf.math.atan2(arrayXY[:, 5], 1e-10 + arrayXY[:, 4])
-        arrayPtPhi_quartile = tf.stack([pt_25, phi_25, pt_75, phi_75], axis=-1)
+        #pt_75 = K.sqrt((arrayXY[:, 4]**2 + arrayXY[:, 5]**2) + 1e-10)
+        #phi_75 = tf.math.atan2(arrayXY[:, 5], 1e-10 + arrayXY[:, 4])
+        arrayPtPhi_quartile = tf.stack([pt_25, phi_25], axis=-1)
         arrayPtPhi = tf.concat([arrayPtPhi, arrayPtPhi_quartile], axis=-1)
     return arrayPtPhi
 
@@ -39,8 +39,6 @@ def custom_loss(y_true, y_pred):
     phi_pred_mean = ptphi_pred[:,1]
     pt_pred_25 = ptphi_pred[:,2]
     phi_pred_25 = ptphi_pred[:,3]
-    pt_pred_75 = ptphi_pred[:,4]
-    phi_pred_75 = ptphi_pred[:,5]
 
     def resp_cor(pred_px, pred_py, truth_px, truth_py, pxpy=True):
         if pxpy==True:
@@ -103,21 +101,25 @@ def custom_loss(y_true, y_pred):
         loss = tf.where(z > 0, tau * z, (tau - 1) * z)
         return tf.reduce_mean(loss)
 
-    delta = 1.0  # Huber loss delta
-    tau_25 = 0.25  # 25% quantile
-    tau_75 = 0.75  # 75% quantile
- 
     
-    huber_loss_value = huber_loss(px_truth, px_pred, py_truth, py_pred, delta)
-    pt_quantile_loss_25 = quantile_loss(pt_truth, pt_pred_25, tau_25)
-    pt_quantile_loss_75 = quantile_loss(pt_truth, pt_pred_75, tau_75)
-    phi_quantile_loss_25 = quantile_loss(phi_truth, phi_pred_25, tau_25)
-    phi_quantile_loss_75 = quantile_loss(phi_truth, phi_pred_75, tau_75)
-    
-    complete_loss_value = huber_loss_value + pt_quantile_loss_25 + pt_quantile_loss_75 + phi_quantile_loss_25 + phi_quantile_loss_75
-    dev_mean = resp_cor(px_pred, py_pred, px_truth, py_truth)
-    #dev_25 = resp_cor(pt_pred_25, phi_pred_25, pt_truth, phi_truth, pxpy=False)
-    #dev_75 = resp_cor(pt_pred_75, phi_pred_75, pt_truth, phi_truth, pxpy=False)
-    #complete_loss_value += 5000.*dev
-    loss = complete_loss_value + 70.*dev_mean
-    return loss
+    sig_pt = tf.expand_dims(pt_pred_25, axis=-1)
+    sig_phi = tf.expand_dims(phi_pred_25, axis=-1)
+    pt_truth_expand = tf.expand_dims(pt_truth, axis=-1)
+    #try pt axis and then x-y axis
+    truth = tf.stack([pt_truth, phi_truth], axis=-1)
+    truth = tf.expand_dims(truth,axis=1)
+    pred = tf.stack([pt_pred_mean, phi_pred_mean], axis=-1)
+    pred = tf.expand_dims(pred, axis=1)
+    zeros = tf.zeros(shape=tf.shape(sig_pt))
+    cov_mat_row1 = tf.concat([sig_pt+1e-12, zeros],axis=-1)
+    cov_mat_row2 = tf.concat([zeros, pt_truth_expand**2 * sig_phi**2 + 1e-12],axis=-1)
+    cov_mat = tf.stack([cov_mat_row1, cov_mat_row2], axis=-1)
+    cov_mat_inv = tf.linalg.inv(cov_mat)
+    #yuh = tf.linalg.matmul(cov_mat_inv, (truth-pred))
+    #tf.print(yuh.get_shape())
+    L = 0.5 * tf.linalg.matmul((truth - pred), tf.linalg.matmul(cov_mat_inv, tf.transpose((truth-pred), perm=[0,2,1]))) + 0.5 *tf.math.log(tf.linalg.det(cov_mat) + 1e-10)
+    #tf.print(L.get_shape())
+    L = tf.math.reduce_mean(L)
+
+
+    return L
