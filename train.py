@@ -101,8 +101,6 @@ def get_callbacks(path_out, sample_size, batch_size):
 
 def test(Yr_test, predict_test, PUPPI_pt, path_out):
     
-    PUPPI_pt = np.concatenate( (PUPPI_pt, np.zeros((PUPPI_pt.shape[0],4))), axis=-1)
-    
     MakePlots(Yr_test, predict_test, PUPPI_pt, path_out=path_out)
     
     Yr_test = convertXY2PtPhi(Yr_test)
