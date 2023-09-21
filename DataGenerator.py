@@ -177,7 +177,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
             
             # Prepare training/val data
             Yr = Y
-            Yr = np.concatenate([Y, np.zeros([Y.shape[0],4])],axis=-1)
+            Yr = np.concatenate([Y, np.zeros([Y.shape[0],2])],axis=-1)
             Xr = [Xi, Xp] + Xc + [ef]
             return Xr, Yr
 
@@ -188,7 +188,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
 
             # Prepare training/val data
             Yr = Y
-            Yr = np.concatenate([Y, np.zeros([Y.shape[0],4])],axis=-1)
+            Yr = np.concatenate([Y, np.zeros([Y.shape[0],2])],axis=-1)
             Xr = [Xi, Xp] + Xc
             return Xr, Yr
 
