@@ -112,7 +112,7 @@ def custom_loss(y_true, y_pred):
     pred = tf.expand_dims(pred, axis=1)
     zeros = tf.zeros(shape=tf.shape(sig_pt))
     cov_mat_row1 = tf.concat([sig_pt+1e-12, zeros],axis=-1)
-    cov_mat_row2 = tf.concat([zeros, pt_truth_expand**2 * sig_phi**2 + 1e-12],axis=-1)
+    cov_mat_row2 = tf.concat([zeros, sig_phi**2 + 1e-12],axis=-1)
     cov_mat = tf.stack([cov_mat_row1, cov_mat_row2], axis=-1)
     cov_mat_inv = tf.linalg.inv(cov_mat)
     #yuh = tf.linalg.matmul(cov_mat_inv, (truth-pred))
