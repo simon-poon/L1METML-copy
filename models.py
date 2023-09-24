@@ -53,18 +53,13 @@ class quantile_multiply_layer(Layer):
     #    return cfg
 
     def call(self, weights, pxpy):
-        px = tf.gather(pxpy, [0], axis=-1)
-        py = tf.gather(pxpy, [1], axis=-1)
+        weight = tf.gather(weights, [0], axis=-1)
+        pt_sig = tf.gather(weights, [1], axis=-1)
+        phi_sig = tf.gather(weights, [2], axis=-1)
 
-        px_adj = tf.math.multiply(weights,px)
-        py_adj = tf.math.multiply(weights,py)
+        pxpy_weighted = tf.math.multiply(weight,pxpy)
 
-        px_mean = tf.gather(px_adj,[0], axis=-1)
-        px_25 = tf.gather(px_adj,[1], axis=-1)
-        py_mean = tf.gather(py_adj,[0], axis=-1)
-        py_25 = tf.gather(py_adj,[1], axis=-1)
-
-        output = tf.concat([px_mean,py_mean,px_25,py_25],axis=-1)
+        output = tf.concat([pxpy_weighted,pt_sig,phi_sig],axis=-1)
 
         return output
 
@@ -114,7 +109,7 @@ def dense_embedding(n_features=6,
         if with_bias:
             b = Dense(2, name='met_bias', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
             pxpy = Add()([pxpy, b])
-        w = Dense(2, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
+        w = Dense(3, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
         w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
         x = quantile_multiply_layer()(w, pxpy)
         x = weighted_sum_layer(name='output')(x)
@@ -122,7 +117,7 @@ def dense_embedding(n_features=6,
 
     keras_model = Model(inputs=inputs, outputs=outputs)
 
-    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1., 1.]), np.array([-1., -1.]), np.array([0., 0.]), np.array([1., 1.])])
+    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1., 1., 1.]), np.array([-1., -1., -1.,]), np.array([0., 0., 0.,]), np.array([1., 1., 1.,])])
 
     return keras_model
 
