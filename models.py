@@ -1,5 +1,5 @@
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Dense, Embedding, BatchNormalization, Dropout, Lambda, Conv1D, SpatialDropout1D, Concatenate, Flatten, Reshape, Multiply, Add, GlobalAveragePooling1D, Activation, Permute
+from tensorflow.keras.layers import Input, Dense, Embedding, BatchNormalization, Dropout, Lambda, Conv1D, SpatialDropout1D, Concatenate, Flatten, Reshape, Multiply, Add, GlobalAveragePooling1D, Activation, Permute, Layer
 import tensorflow.keras.backend as K
 import tensorflow as tf
 from tensorflow import slice
@@ -8,8 +8,6 @@ import qkeras
 from qkeras.qlayers import QDense, QActivation
 import numpy as np
 import itertools
-
-from tensorflow.keras.layers import Layer
 
 class weighted_sum_layer(Layer):
     '''Either does weight times inputs
@@ -32,36 +30,6 @@ class weighted_sum_layer(Layer):
 
     def call(self, inputs):
         return tf.reduce_sum(inputs, axis=1)
-
-class quantile_multiply_layer(Layer):
-    '''Either does weight times inputs
-    or weight times inputs + bias
-    Input to be provided as:
-      - Weights
-      - ndim biases (if applicable)
-      - ndim items to sum
-    Currently works for 3-dim input, summing over the 2nd axis'''
-    #def __init__(self, ndim=2, with_bias=False, **kwargs):
-    #    super(weighted_sum_layer, self).__init__(**kwargs)
-    #    self.with_bias = with_bias
-    #    self.ndim = ndim
-#
-    #def get_config(self):
-    #    cfg = super(weighted_sum_layer, self).get_config()
-    #    cfg['ndim'] = self.ndim
-    #    cfg['with_bias'] = self.with_bias
-    #    return cfg
-
-    def call(self, weights, pxpy):
-        weight = tf.gather(weights, [0], axis=-1)
-        pt_sig = tf.gather(weights, [1], axis=-1)
-        phi_sig = tf.gather(weights, [2], axis=-1)
-
-        pxpy_weighted = tf.math.multiply(weight,pxpy)
-
-        output = tf.concat([pxpy_weighted,pt_sig,phi_sig],axis=-1)
-
-        return output
 
 def dense_embedding(n_features=6,
                     n_features_cat=2,
@@ -95,6 +63,14 @@ def dense_embedding(n_features=6,
     # x = Concatenate()([inputs_cont] + embeddings)
     emb_concat = Concatenate()(embeddings)
     x = Concatenate()([inputs_cont, emb_concat])
+    y = x
+    for i_dense in range(n_dense_layers):
+        y = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(y)
+        y = BatchNormalization(momentum=0.95)(y)
+        y = Activation(activation=activation)(y)
+    v = Dense(2, activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(y)
+    v = BatchNormalization(trainable=False, name='uncertainties', epsilon=False)(v)
+    v = weighted_sum_layer(name='sig_output')(v)
 
     for i_dense in range(n_dense_layers):
         x = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(x)
@@ -109,15 +85,16 @@ def dense_embedding(n_features=6,
         if with_bias:
             b = Dense(2, name='met_bias', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
             pxpy = Add()([pxpy, b])
-        w = Dense(3, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
+        w = Dense(1, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
         w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
-        x = quantile_multiply_layer()(w, pxpy)
+        x = Multiply()([w, pxpy])
+
         x = weighted_sum_layer(name='output')(x)
-    outputs = x
+    outputs = Concatenate()([x,v])
 
     keras_model = Model(inputs=inputs, outputs=outputs)
 
-    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1., 1., 1.]), np.array([-1., -1., -1.,]), np.array([0., 0., 0.,]), np.array([1., 1., 1.,])])
+    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1.]), np.array([-1.]), np.array([0.]), np.array([1.])])
 
     return keras_model
 
@@ -203,7 +180,30 @@ def assign_matrices(N, Nr):
         Rs[s, i] = 1
     return Rs, Rr
 
+import tensorflow as tf
+from tensorflow.keras.layers import Layer
 
+class weighted_sum_layer(Layer):
+    '''Either does weight times inputs
+    or weight times inputs + bias
+    Input to be provided as:
+      - Weights
+      - ndim biases (if applicable)
+      - ndim items to sum
+    Currently works for 3-dim input, summing over the 2nd axis'''
+    #def __init__(self, ndim=2, with_bias=False, **kwargs):
+    #    super(weighted_sum_layer, self).__init__(**kwargs)
+    #    self.with_bias = with_bias
+    #    self.ndim = ndim
+#
+    #def get_config(self):
+    #    cfg = super(weighted_sum_layer, self).get_config()
+    #    cfg['ndim'] = self.ndim
+    #    cfg['with_bias'] = self.with_bias
+    #    return cfg
+
+    def call(self, inputs):
+        return tf.reduce_sum(inputs, axis=1)
 
 def graph_embedding(compute_ef, n_features=6,
                     n_features_cat=2,
@@ -289,15 +289,15 @@ def graph_embedding(compute_ef, n_features=6,
         h = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(h)
         h = BatchNormalization(momentum=0.95)(h)
         h = Activation(activation=activation)(h)
-    w = Dense(3, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(h)
+    w = Dense(1, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(h)
     w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
-    x = quantile_multiply_layer()(w, pxpy)
+    x = Multiply()([w, pxpy])
     outputs = weighted_sum_layer(name='output')(x)
     #outputs = GlobalAveragePooling1D(name='output')(x)
 
     keras_model = Model(inputs=inputs, outputs=outputs)
 
-    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1., 1., 1.]), np.array([-1., -1., -1.]), np.array([0., 0., 0.]), np.array([1., 1., 1.])])
+    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1.]), np.array([-1.]), np.array([0.]), np.array([1.])])
 
     # Create a fully connected adjacency matrix
     Rs, Rr = assign_matrices(N, Nr)
