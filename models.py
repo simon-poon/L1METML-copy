@@ -1,5 +1,5 @@
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Dense, Embedding, BatchNormalization, Dropout, Lambda, Conv1D, SpatialDropout1D, Concatenate, Flatten, Reshape, Multiply, Add, GlobalAveragePooling1D, Activation, Permute
+from tensorflow.keras.layers import Input, Dense, Embedding, BatchNormalization, Dropout, Lambda, Conv1D, SpatialDropout1D, Concatenate, Flatten, Reshape, Multiply, Add, GlobalAveragePooling1D, Activation, Permute, Softmax, Layer
 import tensorflow.keras.backend as K
 import tensorflow as tf
 from tensorflow import slice
@@ -9,6 +9,30 @@ from qkeras.qlayers import QDense, QActivation
 import numpy as np
 import itertools
 
+class add_axis(Layer):
+    def call(self, inputs):
+        return tf.expand_dims(inputs, axis=-1)
+
+class bin_multiply(Layer):
+    def call(self, bins, pxpy): 
+        px = tf.gather(pxpy, [0], axis=-1)
+        py = tf.gather(pxpy, [1], axis=-1)
+
+        tf.print(tf.shape(bins))
+        bins_x = tf.gather(pxpy, [0], axis=2)
+        bins_x = tf.squeeze(bins_x, axis=-1)
+
+        bins_y = tf.gather(pxpy, [1], axis=2)
+        bins_y = tf.squeeze(bins_y, axis=-1)
+
+        tf.print(tf.shape(bins_x))
+
+        pred_px = tf.reduce_sum(px * bins_x, axis=-1, keepdims=True)
+        pred_py = tf.reduce_sum(py * bins_y, axis=-1, keepdims=True)
+
+        pred_pxpy = tf.concat([pred_px, pred_py], axis=-1)
+
+        return pred_pxpy
 
 def dense_embedding(n_features=6,
                     n_features_cat=2,
@@ -18,7 +42,8 @@ def dense_embedding(n_features=6,
                     emb_out_dim=8,
                     with_bias=True,
                     t_mode=0,
-                    units=[64, 32, 16]):
+                    units=[64, 32, 16],
+                    num_of_bins=50):
     n_dense_layers = len(units)
 
     inputs_cont = Input(shape=(number_of_pupcandis, n_features-2), name='input_cont')
@@ -42,7 +67,7 @@ def dense_embedding(n_features=6,
     # x = Concatenate()([inputs_cont] + embeddings)
     emb_concat = Concatenate()(embeddings)
     x = Concatenate()([inputs_cont, emb_concat])
-
+    x = add_axis()(x)
     for i_dense in range(n_dense_layers):
         x = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(x)
         x = BatchNormalization(momentum=0.95)(x)
@@ -56,16 +81,17 @@ def dense_embedding(n_features=6,
         if with_bias:
             b = Dense(2, name='met_bias', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
             pxpy = Add()([pxpy, b])
-        w = Dense(1, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
-        w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
-        x = Multiply()([w, pxpy])
+        w = Dense(num_of_bins, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
+        w = BatchNormalization(momentum=0.95)(w)
+        w = Softmax(axis=-1)(w)
 
-        x = GlobalAveragePooling1D(name='output')(x)
-    outputs = x
+        x = bin_multiply()(w, pxpy)
+
+    outputs = {"pxpy": x, "pxpy_bins": w}
 
     keras_model = Model(inputs=inputs, outputs=outputs)
 
-    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1.]), np.array([-1.]), np.array([0.]), np.array([1.])])
+    #keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1.]), np.array([-1.]), np.array([0.]), np.array([1.])])
 
     return keras_model
 
