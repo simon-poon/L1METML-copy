@@ -14,7 +14,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
     'Generates data for Keras'
 
     def __init__(self, list_files, batch_size=1024, n_dim=100, maxNPF=100, compute_ef=0,
-                 max_entry=100000000, edge_list=[]):
+                 max_entry=100000000, edge_list=[], num_of_bins=50):
         'Initialization'
         self.n_features_pf = 6
         self.n_features_pf_cat = 2
@@ -30,6 +30,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
         self.maxNPF = maxNPF
         self.compute_ef = compute_ef
         self.edge_list = edge_list
+        self.num_of_bins = num_of_bins
         running_total = 0
 
         self.h5files = []
@@ -134,6 +135,11 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
         N = self.maxNPF
         Nr = N*(N-1)
 
+        bins = np.linspace(-200,200, self.num_of_bins)
+        truth_bins_x = np.digitize(Y[:,0:1], bins)
+        truth_bins_y = np.digitize(Y[:,1:2], bins)
+        truth_bins_pxpy = np.concatenate([truth_bins_x, truth_bins_y])
+
         if self.compute_ef == 1:
             eta = Xi[:, :, 1]
             phi = Xi[:, :, 2]
@@ -175,7 +181,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
             self.emb_input_dim = {i: int(np.max(Xc[i][0:1000])) + 1 for i in range(self.n_features_pf_cat)}
 
             # Prepare training/val data
-            Yr = Y
+            Yr = Y, truth
             Xr = [Xi, Xp] + Xc + [ef]
             return Xr, Yr
 
@@ -185,7 +191,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
             self.emb_input_dim = {i: int(np.max(Xc[i][0:1000])) + 1 for i in range(self.n_features_pf_cat)}
 
             # Prepare training/val data
-            Yr = Y
+            Yr = [Y, truth_bins_pxpy]
             Xr = [Xi, Xp] + Xc
             return Xr, Yr
 
