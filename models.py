@@ -10,8 +10,12 @@ import numpy as np
 import itertools
 
 class add_axis(Layer):
+    
     def call(self, inputs):
-        return tf.expand_dims(inputs, axis=-1)
+        exp_dim = tf.expand_dims(inputs, axis=2)
+        repeat = tf.repeat(exp_dim, 2, axis=-1)
+        reshape = tf.reshape(repeat, [None, 100, 2, num_of_bins])
+        return
 
 class bin_multiply(Layer):
     def call(self, bins, pxpy): 
@@ -19,11 +23,11 @@ class bin_multiply(Layer):
         py = tf.gather(pxpy, [1], axis=-1)
 
         tf.print(tf.shape(bins))
-        bins_x = tf.gather(pxpy, [0], axis=2)
-        bins_x = tf.squeeze(bins_x, axis=-1)
+        bins_x = tf.gather(bins, [0], axis=2)
+        bins_x = tf.squeeze(bins_x, axis=2)
 
-        bins_y = tf.gather(pxpy, [1], axis=2)
-        bins_y = tf.squeeze(bins_y, axis=-1)
+        bins_y = tf.gather(bins, [1], axis=2)
+        bins_y = tf.squeeze(bins_y, axis=2)
 
         tf.print(tf.shape(bins_x))
 
@@ -87,7 +91,7 @@ def dense_embedding(n_features=6,
 
         x = bin_multiply()(w, pxpy)
 
-    outputs = {"pxpy": x, "pxpy_bins": w}
+    outputs = [x,w]
 
     keras_model = Model(inputs=inputs, outputs=outputs)
 
