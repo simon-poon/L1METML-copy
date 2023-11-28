@@ -139,6 +139,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
         truth_bins_x = np.digitize(Y[:,0:1], bins)
         truth_bins_y = np.digitize(Y[:,1:2], bins)
         truth_bins_pxpy = np.concatenate([truth_bins_x, truth_bins_y],axis=-1)
+        truth_bins_pxpy = np.expand_dims(truth_bins_pxpy,axis=-1)
 
         if self.compute_ef == 1:
             eta = Xi[:, :, 1]
@@ -191,10 +192,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
             self.emb_input_dim = {i: int(np.max(Xc[i][0:1000])) + 1 for i in range(self.n_features_pf_cat)}
 
             # Prepare training/val data
-            print("--------------")
-            print(Y.shape)
-            bleh = np.zeros([Y.shape[0], 2, 50])
-            Yr = [Y, bleh]
+            Yr = [Y, truth_bins_pxpy]
             Xr = [Xi, Xp] + Xc
             return Xr, Yr
 
