@@ -223,7 +223,7 @@ def train_dataGenerator(args):
                                                 units=units)
 
     # Check which model will be used (0 for L1MET Model, 1 for DeepMET Model)
-    loss_dict = custom_loss # [custom_loss, losses.SparseCategoricalCrossentropy(from_logits=False)]
+    loss_dict = [custom_loss, losses.SparseCategoricalCrossentropy(from_logits=False)]
     if t_mode == 0:
         keras_model.compile(optimizer='adam', loss=loss_dict, metrics=['mean_absolute_error', 'mean_squared_error'])
         verbose = 1
