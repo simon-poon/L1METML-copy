@@ -93,7 +93,7 @@ def custom_loss(y_true, y_pred):
         py_error = py_true - pred_py
         px_abs_error = tf.abs(px_error)
         py_abs_error = tf.abs(py_error)
-        quadratic_region = 0.5 * tf.square(px_abs_error) + tf.square(py_abs_error)
+        quadratic_region = 0.5 * tf.square(px_abs_error) + 0.5 * tf.square(py_abs_error)
         linear_region = delta * px_abs_error + delta * py_abs_error - 0.5 * tf.square(delta)
         loss = tf.where(px_abs_error + py_abs_error < delta, quadratic_region, linear_region)
         return tf.reduce_mean(loss)
