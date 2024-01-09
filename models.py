@@ -40,18 +40,18 @@ class add_axis(Layer):
         return exp_dim
 
 class bin_multiply(Layer):
-    def call(self, bins, pxpy): 
+    def call(self, prob, pxpy): 
         px = tf.gather(pxpy, [0], axis=-1)
         py = tf.gather(pxpy, [1], axis=-1)
 
-        bins_x = tf.gather(bins, [0], axis=-2)
-        bins_x = tf.squeeze(bins_x, axis=-2)
+        prob_x = tf.gather(prob, [0], axis=-2)
+        prob_x = tf.squeeze(prob_x, axis=-2)
 
-        bins_y = tf.gather(bins, [1], axis=-2)
-        bins_y = tf.squeeze(bins_y, axis=-2)
-        print(bins_y.shape)
-        pred_px = tf.reduce_sum(px * bins_x, axis=-1, keepdims=True)
-        pred_py = tf.reduce_sum(py * bins_y, axis=-1, keepdims=True)
+        prob_y = tf.gather(prob, [1], axis=-2)
+        prob_y = tf.squeeze(prob_y, axis=-2)
+
+        pred_px = tf.reduce_sum(px * prob_x, axis=-1, keepdims=True)
+        pred_py = tf.reduce_sum(py * prob_y, axis=-1, keepdims=True)
 
         pred_pxpy = tf.concat([pred_px, pred_py], axis=-1)
 
@@ -111,6 +111,10 @@ def dense_embedding(n_features=6,
 
         m = add_axis()(x)
 
+        bins = np.linspace(-200,200, num_of_bins-1)
+        bin_center = bins - (bins[1] - bins[0])/2
+        bin_center = np.append(bin_center, 200 + (bins[1] - bins[0])/2)
+        bin_center = K.variable(value=bin_center)
         units_list = [32,32]
         for i_dense in range(2):
             m = Dense(units_list[i_dense], activation='linear', kernel_initializer='lecun_uniform')(m)
@@ -119,7 +123,7 @@ def dense_embedding(n_features=6,
         m = Dense(num_of_bins, activation='linear', kernel_initializer='lecun_uniform')(m)
         w = BatchNormalization(momentum=0.95)(m)
         w = Softmax(axis=-1)(w)
-        m = bin_multiply()(w,x)
+        m = bin_multiply()(w,bin_center)
 
 
     outputs = [m,w]
