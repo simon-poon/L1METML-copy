@@ -246,7 +246,7 @@ def train_dataGenerator(args):
 
     end_time = time.time()  # check end time
 
-    predict_test = keras_model.predict(testGenerator) * normFac
+    predict_test[0] = keras_model.predict(testGenerator) * normFac
     all_PUPPI_pt = []
     Yr_test = []
     for (Xr, Yr) in tqdm.tqdm(testGenerator):
