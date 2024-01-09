@@ -116,7 +116,7 @@ def dense_embedding(n_features=6,
             m = Dense(units_list[i_dense], activation='linear', kernel_initializer='lecun_uniform')(m)
             m = BatchNormalization(momentum=0.95)(m)
             m = Activation(activation=activation)(m)
-        m = Dense(50, activation='linear', kernel_initializer='lecun_uniform')(m)
+        m = Dense(num_of_bins, activation='linear', kernel_initializer='lecun_uniform')(m)
         w = BatchNormalization(momentum=0.95)(m)
         w = Softmax(axis=-1)(w)
         m = bin_multiply()(w,x)
