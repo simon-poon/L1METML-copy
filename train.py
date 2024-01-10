@@ -246,13 +246,14 @@ def train_dataGenerator(args):
 
     end_time = time.time()  # check end time
 
-    predict_test[0] = keras_model.predict(testGenerator) * normFac
+    predict_test = keras_model.predict(testGenerator)[0] * normFac
+    print(predict_test.shape)
     all_PUPPI_pt = []
     Yr_test = []
     for (Xr, Yr) in tqdm.tqdm(testGenerator):
         puppi_pt = np.sum(Xr[1], axis=1)
         all_PUPPI_pt.append(puppi_pt)
-        Yr_test.append(Yr)
+        Yr_test.append(Yr[0])
     
 
     PUPPI_pt = normFac * np.concatenate(all_PUPPI_pt)
