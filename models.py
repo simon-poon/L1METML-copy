@@ -40,9 +40,18 @@ class add_axis(Layer):
         return exp_dim
 
 class bin_multiply(Layer):
-    def call(self, prob, pxpy): 
-        px = tf.gather(pxpy, [0], axis=-1)
-        py = tf.gather(pxpy, [1], axis=-1)
+    def __init__(self, num_of_bins=50, **kwargs):
+        super(bin_multiply, self).__init__(**kwargs)
+        self.num_of_bins = num_of_bins
+        bins = np.linspace(-200,200, self.num_of_bins-1)
+        bin_center = bins - (bins[1] - bins[0])/2
+        self.bin_center = np.append(bin_center, 200 + (bins[1] - bins[0])/2)
+        #self.bin_center = tf.convert_to_tensor(bin_center, dtype=tf.float32)
+    
+    def call(self, prob):
+        #px = tf.gather(self.bin_center, [0], axis=-1)
+        #py = tf.gather(self.bin_center, [1], axis=-1)
+        bin_center = tf.convert_to_tensor(self.bin_center, dtype=tf.float32)
 
         prob_x = tf.gather(prob, [0], axis=-2)
         prob_x = tf.squeeze(prob_x, axis=-2)
@@ -50,12 +59,18 @@ class bin_multiply(Layer):
         prob_y = tf.gather(prob, [1], axis=-2)
         prob_y = tf.squeeze(prob_y, axis=-2)
 
-        pred_px = tf.reduce_sum(px * prob_x, axis=-1, keepdims=True)
-        pred_py = tf.reduce_sum(py * prob_y, axis=-1, keepdims=True)
+        pred_px = tf.reduce_sum(bin_center * prob_x, axis=-1, keepdims=True)
+        pred_py = tf.reduce_sum(bin_center * prob_y, axis=-1, keepdims=True)
 
         pred_pxpy = tf.concat([pred_px, pred_py], axis=-1)
 
         return pred_pxpy
+
+    def get_config(self):
+        cfg = super(bin_multiply, self).get_config()
+        cfg['num_of_bins'] = self.num_of_bins
+        cfg['bin_center'] = self.bin_center
+        return cfg
 
 def dense_embedding(n_features=6,
                     n_features_cat=2,
@@ -111,10 +126,6 @@ def dense_embedding(n_features=6,
 
         m = add_axis()(x)
 
-        bins = np.linspace(-200,200, num_of_bins-1)
-        bin_center = bins - (bins[1] - bins[0])/2
-        bin_center = np.append(bin_center, 200 + (bins[1] - bins[0])/2)
-        bin_center = K.variable(value=bin_center)
         units_list = [32,32]
         for i_dense in range(2):
             m = Dense(units_list[i_dense], activation='linear', kernel_initializer='lecun_uniform')(m)
@@ -123,7 +134,7 @@ def dense_embedding(n_features=6,
         m = Dense(num_of_bins, activation='linear', kernel_initializer='lecun_uniform')(m)
         w = BatchNormalization(momentum=0.95)(m)
         w = Softmax(axis=-1)(w)
-        m = bin_multiply()(w,bin_center)
+        m = bin_multiply(num_of_bins=num_of_bins)(w)
 
 
     outputs = [m,w]
