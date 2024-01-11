@@ -86,8 +86,9 @@ class Bin_Multiply(Layer):
         pred_px = bin_center * prob_x
         pred_py = bin_center * prob_y
 
-        pred_pxpy = tf.stack([pred_px, pred_py], axis=1)
-        print(pred_pxpy.shape)
+        pred_px = tf.reduce_sum(pred_px, axis=-1, keepdims=True)
+        pred_py = tf.reduce_sum(pred_py, axis=-1, keepdims=True)
+        pred_pxpy = tf.concat([pred_px, pred_py], axis=-1)
         return pred_pxpy
 
     def get_config(self):
