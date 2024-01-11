@@ -31,6 +31,25 @@ class weighted_sum_layer(Layer):
     def call(self, inputs):
         return tf.reduce_sum(inputs, axis=1)
 
+class Custom_Multiply(Layer):
+    def __init__(self, num_of_bins, **kwargs):
+        super(Custom_Multiply, self).__init__(**kwargs)
+        self.num_of_bins = num_of_bins
+
+    def call(self, weights, pxpy): #(Batch x 100 x num_of_bins)
+        weight = tf.gather(weights, [0], axis=-1)
+        weighted_pxpy = tf.multiply(weight,pxpy)
+        for i in range(1,self.num_of_bins):
+            weight = tf.gather(weights, [self.num_of_bins-1], axis=-1)
+            part_weighted_pxpy = tf.multiply(weight,pxpy)
+            weighted_pxpy = tf.concat([weighted_pxpy, part_weighted_pxpy],-1)
+        return weighted_pxpy
+
+    def get_config(self):
+        cfg = super(Custom_Multiply, self).get_config()
+        cfg['num_of_bins'] = self.num_of_bins
+        return cfg
+
 class add_axis(Layer):
     
     def call(self, inputs):
@@ -39,9 +58,9 @@ class add_axis(Layer):
         #reshape = tf.reshape(repeat, [None, 100, 2, num_of_bins])
         return exp_dim
 
-class bin_multiply(Layer):
+class Bin_Multiply(Layer):
     def __init__(self, num_of_bins=50, **kwargs):
-        super(bin_multiply, self).__init__(**kwargs)
+        super(Bin_Multiply, self).__init__(**kwargs)
         self.num_of_bins = num_of_bins
         bins = np.linspace(-200,200, self.num_of_bins-1)
         bin_center = bins - (bins[1] - bins[0])/2
@@ -53,21 +72,26 @@ class bin_multiply(Layer):
         #py = tf.gather(self.bin_center, [1], axis=-1)
         bin_center = tf.convert_to_tensor(self.bin_center, dtype=tf.float32)
 
-        prob_x = tf.gather(prob, [0], axis=-2)
-        prob_x = tf.squeeze(prob_x, axis=-2)
+        x_list = list(range(0,self.num_of_bins*2,2))
+        y_list = list(range(1,self.num_of_bins*2,2))
 
-        prob_y = tf.gather(prob, [1], axis=-2)
-        prob_y = tf.squeeze(prob_y, axis=-2)
+        prob_x = tf.gather(prob, x_list, axis=-1)
+        #prob_x = tf.squeeze(prob_x, axis=-2)
+        print("----------")
+        print(prob.shape)
+        print(prob_x.shape)
+        prob_y = tf.gather(prob, y_list, axis=-1)
 
-        pred_px = tf.reduce_sum(bin_center * prob_x, axis=-1, keepdims=True)
-        pred_py = tf.reduce_sum(bin_center * prob_y, axis=-1, keepdims=True)
 
-        pred_pxpy = tf.concat([pred_px, pred_py], axis=-1)
+        pred_px = bin_center * prob_x
+        pred_py = bin_center * prob_y
 
+        pred_pxpy = tf.stack([pred_px, pred_py], axis=1)
+        print(pred_pxpy.shape)
         return pred_pxpy
 
     def get_config(self):
-        cfg = super(bin_multiply, self).get_config()
+        cfg = super(Bin_Multiply, self).get_config()
         cfg['num_of_bins'] = self.num_of_bins
         cfg['bin_center'] = self.bin_center
         return cfg
@@ -119,29 +143,34 @@ def dense_embedding(n_features=6,
         if with_bias:
             b = Dense(2, name='met_bias', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
             pxpy = Add()([pxpy, b])
-        w = Dense(1, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
+        w = Dense(num_of_bins, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
         w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
-        x = Multiply()([w, pxpy])
+        x = Custom_Multiply(num_of_bins)(w, pxpy)
         x = weighted_sum_layer(name='weighted_sum_layer')(x)
+        w = Softmax(axis=-1)(x)
+        m = Bin_Multiply(num_of_bins=num_of_bins)(w)
 
-        m = add_axis()(x)
+        #m = add_axis()(x)
 
-        units_list = [32,32]
-        for i_dense in range(2):
-            m = Dense(units_list[i_dense], activation='linear', kernel_initializer='lecun_uniform')(m)
-            m = BatchNormalization(momentum=0.95)(m)
-            m = Activation(activation=activation)(m)
-        m = Dense(num_of_bins, activation='linear', kernel_initializer='lecun_uniform')(m)
-        w = BatchNormalization(momentum=0.95)(m)
-        w = Softmax(axis=-1)(w)
-        m = bin_multiply(num_of_bins=num_of_bins)(w)
+        #units_list = [32,32]
+        #for i_dense in range(2):
+        #    m = Dense(units_list[i_dense], activation='linear', kernel_initializer='lecun_uniform')(m)
+        #    m = BatchNormalization(momentum=0.95)(m)
+        #    m = Activation(activation=activation)(m)
+        #m = Dense(num_of_bins, activation='linear', kernel_initializer='lecun_uniform')(m)
+        #w = BatchNormalization(momentum=0.95)(m)
+        #w = Softmax(axis=-1)(w)
+        #m = Bin_Multiply(num_of_bins=num_of_bins)(w)
 
 
     outputs = [m,w]
 
     keras_model = Model(inputs=inputs, outputs=outputs)
-
-    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1.]), np.array([-1.]), np.array([0.]), np.array([1.])])
+    a = np.ones(num_of_bins)
+    b = -a
+    c = np.zeros(num_of_bins)
+    d = a
+    keras_model.get_layer('met_weight_minus_one').set_weights([a, b, c, d])
 
     return keras_model
 
