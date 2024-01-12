@@ -32,23 +32,22 @@ class weighted_sum_layer(Layer):
         return tf.reduce_sum(inputs, axis=1)
 
 class Custom_Multiply(Layer):
-    def __init__(self, num_of_bins, **kwargs):
-        super(Custom_Multiply, self).__init__(**kwargs)
-        self.num_of_bins = num_of_bins
+    #def __init__(self, num_of_bins, **kwargs):
+    #    super(Custom_Multiply, self).__init__(**kwargs)
+    #    self.num_of_bins = num_of_bins
 
     def call(self, weights, pxpy): #(Batch x 100 x num_of_bins)
-        weight = tf.gather(weights, [0], axis=-1)
-        weighted_pxpy = tf.multiply(weight,pxpy)
-        for i in range(1,self.num_of_bins):
-            weight = tf.gather(weights, [self.num_of_bins-1], axis=-1)
-            part_weighted_pxpy = tf.multiply(weight,pxpy)
-            weighted_pxpy = tf.concat([weighted_pxpy, part_weighted_pxpy],-1)
+        px = tf.gather(pxpy, [0], axis=-1)
+        py = tf.gather(pxpy, [1], axis=-1)
+        weighted_px = tf.multiply(weights,px)
+        weighted_py = tf.multiply(weights,py)
+        weighted_pxpy = tf.stack([weighted_px,weighted_py],axis=-2)
         return weighted_pxpy
 
-    def get_config(self):
-        cfg = super(Custom_Multiply, self).get_config()
-        cfg['num_of_bins'] = self.num_of_bins
-        return cfg
+    #def get_config(self):
+    #    cfg = super(Custom_Multiply, self).get_config()
+    #    cfg['num_of_bins'] = self.num_of_bins
+    #    return cfg
 
 class add_axis(Layer):
     
@@ -75,19 +74,15 @@ class Bin_Multiply(Layer):
         x_list = list(range(0,self.num_of_bins*2,2))
         y_list = list(range(1,self.num_of_bins*2,2))
 
-        prob_x = tf.gather(prob, x_list, axis=-1)
+        prob_x = tf.gather(prob, [0], axis=1)
         #prob_x = tf.squeeze(prob_x, axis=-2)
-        print("----------")
-        print(prob.shape)
-        print(prob_x.shape)
-        prob_y = tf.gather(prob, y_list, axis=-1)
+        prob_y = tf.gather(prob, [1], axis=1)
 
 
         pred_px = bin_center * prob_x
         pred_py = bin_center * prob_y
-
-        pred_px = tf.reduce_sum(pred_px, axis=-1, keepdims=True)
-        pred_py = tf.reduce_sum(pred_py, axis=-1, keepdims=True)
+        pred_px = tf.reduce_sum(pred_px, axis=-1)
+        pred_py = tf.reduce_sum(pred_py, axis=-1)
         pred_pxpy = tf.concat([pred_px, pred_py], axis=-1)
         return pred_pxpy
 
@@ -146,7 +141,7 @@ def dense_embedding(n_features=6,
             pxpy = Add()([pxpy, b])
         w = Dense(num_of_bins, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
         w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
-        x = Custom_Multiply(num_of_bins)(w, pxpy)
+        x = Custom_Multiply()(w, pxpy)
         x = weighted_sum_layer(name='weighted_sum_layer')(x)
         w = Softmax(axis=-1)(x)
         m = Bin_Multiply(num_of_bins=num_of_bins)(w)
