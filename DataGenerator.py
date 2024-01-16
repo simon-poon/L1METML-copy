@@ -135,7 +135,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
         N = self.maxNPF
         Nr = N*(N-1)
 
-        bins = np.linspace(-200,200, self.num_of_bins-1)
+        bins = np.linspace(-500,500, self.num_of_bins-1)
         truth_bins_x = np.digitize(Y[:,0:1], bins)
         truth_bins_y = np.digitize(Y[:,1:2], bins)
         truth_bins_pxpy = np.concatenate([truth_bins_x, truth_bins_y],axis=-1)
