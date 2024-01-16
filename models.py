@@ -43,9 +43,9 @@ class bin_multiply(Layer):
     def __init__(self, num_of_bins=50, **kwargs):
         super(bin_multiply, self).__init__(**kwargs)
         self.num_of_bins = num_of_bins
-        bins = np.linspace(-200,200, self.num_of_bins-1)
+        bins = np.linspace(-500,500, self.num_of_bins-1)
         bin_center = bins - (bins[1] - bins[0])/2
-        self.bin_center = np.append(bin_center, 200 + (bins[1] - bins[0])/2)
+        self.bin_center = np.append(bin_center, 500 + (bins[1] - bins[0])/2)
         #self.bin_center = tf.convert_to_tensor(bin_center, dtype=tf.float32)
     
     def call(self, prob):
