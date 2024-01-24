@@ -55,4 +55,4 @@ def custom_loss(y_true, y_pred):
 
     #loss += 200.*dev
     loss += 5000.*dev
-    return loss
+    return (1/2000)*loss
