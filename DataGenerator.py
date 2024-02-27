@@ -130,7 +130,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
 
         # process inputs
         Y = self.y / (-self.normFac)
-        Xi, Xp, Xc1, Xc2 = preProcessing(self.X, self.normFac)
+        Xi, Xp = preProcessing(self.X, self.normFac)
 
         N = self.maxNPF
         Nr = N*(N-1)
@@ -140,6 +140,10 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
         truth_bins_y = np.digitize(Y[:,1:2], bins)
         truth_bins_pxpy = np.concatenate([truth_bins_x, truth_bins_y],axis=-1)
         truth_bins_pxpy = np.expand_dims(truth_bins_pxpy,axis=-1)
+
+        px_feat = np.concatenate((Xi, Xp[:,0:1]), axis=-1)
+        py_feat = np.concatenate((Xi, Xp[:,1:2]), axis=-1)
+        pxpy_feat = np.stack((px_feat, py_feat), axis=1)
 
         if self.compute_ef == 1:
             eta = Xi[:, :, 1]
@@ -177,23 +181,21 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
                 edge_stack.append(m2)
             ef = np.stack(edge_stack, axis=-1)
 
-            Xc = [Xc1, Xc2]
+            #Xc = [Xc1, Xc2]
             # dimension parameter for keras model
-            self.emb_input_dim = {i: int(np.max(Xc[i][0:1000])) + 1 for i in range(self.n_features_pf_cat)}
 
             # Prepare training/val data
             Yr = Y, truth
-            Xr = [Xi, Xp] + Xc + [ef]
+            Xr = pxpy_feat
             return Xr, Yr
 
         else:
-            Xc = [Xc1, Xc2]
             # dimension parameter for keras model
-            self.emb_input_dim = {i: int(np.max(Xc[i][0:1000])) + 1 for i in range(self.n_features_pf_cat)}
+        
 
             # Prepare training/val data
             Yr = [Y, truth_bins_pxpy]
-            Xr = [Xi, Xp] + Xc
+            Xr = pxpy_feat
             return Xr, Yr
 
     def __get_features_labels(self, ifile, entry_start, entry_stop):
