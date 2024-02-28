@@ -51,7 +51,7 @@ def preProcessing(A, normFac, EVT=None):
     event_pz = np.sum(pz, axis=1)
     event_pt = np.sqrt((event_px**2 + event_py**2))
     event_phi = np.arctan2(event_py, event_px)
-    event_eta = np.arcsinh(event_pz/event_pt)
+    event_eta = np.arcsinh(event_pz/(event_pt+1e-12))
     inputs = np.concatenate((event_pt, event_eta, event_phi, ht), axis=1)
     pxpy = np.concatenate((event_px, event_py), axis=1)
 
