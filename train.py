@@ -251,7 +251,7 @@ def train_dataGenerator(args):
     all_PUPPI_pt = []
     Yr_test = []
     for (Xr, Yr) in tqdm.tqdm(testGenerator):
-        puppi_pt = np.sum(Xr[1], axis=1)
+        puppi_pt = np.concatenate((Xr[:,0:1,-1], Xr[:,1:2,-1]),axis=-1)
         all_PUPPI_pt.append(puppi_pt)
         Yr_test.append(Yr[0])
     
