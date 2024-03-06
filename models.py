@@ -12,11 +12,9 @@ import itertools
 class DivPuppi(Layer):
     def call(self, pred, puppi):
         init_px = tf.gather(pred, [0], axis=-1)
-        puppi_px = tf.gather(puppi, [0], axis=-1)
-        px = init_px/puppi_px
+        px = init_px/(puppi+1e-12)
         init_py = tf.gather(pred, [1], axis=-1)
-        puppi_py = tf.gather(puppi, [1], axis=-1)
-        py = init_py/puppi_py
+        py = init_py/(puppi+1e-12)
         pred_pxpy = tf.concat([px, py], axis=-1)
         return pred_pxpy
 
@@ -48,7 +46,7 @@ def dense_embedding(n_features=6,
             name='embedding{}'.format(i_emb))(input_cat)
         embeddings.append(embedding)
 
-    puppi_pt = Input(shape=(2), name='puppi_pt')
+    puppi_pt = Input(shape=(1), name='puppi_pt')
     inputs.append(puppi_pt)
 
     # can concatenate all 3 if updated in hls4ml, for now; do it pairwise
