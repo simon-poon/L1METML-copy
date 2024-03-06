@@ -1,223 +1,291 @@
-
-import tensorflow
-import tensorflow.keras as keras
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Dense, Embedding, BatchNormalization, Dropout, Lambda, Conv1D, SpatialDropout1D, Concatenate, Flatten, Reshape, Multiply, Add, GlobalAveragePooling1D, Activation, Permute, Layer
+import tensorflow.keras.backend as K
+import tensorflow as tf
+from tensorflow import slice
+from tensorflow.keras import initializers
+import qkeras
+from qkeras.qlayers import QDense, QActivation
 import numpy as np
-import uproot
-import awkward as ak
-from utils import convertXY2PtPhi, preProcessing, to_np_array
-import h5py
-import os
 import itertools
 
+class DivPuppi(Layer):
+    def call(self, pred, puppi):
+        init_px = tf.gather(pred, [0], axis=-1)
+        px = init_px/(puppi+1e-12)
+        init_py = tf.gather(pred, [1], axis=-1)
+        py = init_py/(puppi+1e-12)
+        pred_pxpy = tf.concat([px, py], axis=-1)
+        return pred_pxpy
 
-class DataGenerator(tensorflow.keras.utils.Sequence):
-    'Generates data for Keras'
+def dense_embedding(n_features=6,
+                    n_features_cat=2,
+                    activation='relu',
+                    number_of_pupcandis=100,
+                    embedding_input_dim={0: 13, 1: 3},
+                    emb_out_dim=8,
+                    with_bias=True,
+                    t_mode=0,
+                    units=[64, 32, 16]):
+    n_dense_layers = len(units)
 
-    def __init__(self, list_files, batch_size=1024, n_dim=100, maxNPF=100, compute_ef=0,
-                 max_entry=100000000, edge_list=[]):
-        'Initialization'
-        self.n_features_pf = 6
-        self.n_features_pf_cat = 2
-        self.normFac = 1.
-        self.batch_size = batch_size
-        self.n_dim = n_dim
-        self.n_channels = 8
-        self.global_IDs = []
-        self.local_IDs = []
-        self.file_mapping = []
-        self.max_entry = max_entry
-        self.open_files = [None]*len(list_files)
-        self.maxNPF = maxNPF
-        self.compute_ef = compute_ef
-        self.edge_list = edge_list
-        running_total = 0
+    inputs_cont = Input(shape=(number_of_pupcandis, n_features-2), name='input_cont')
+    pxpy = Input(shape=(number_of_pupcandis, 2), name='input_pxpy')
 
-        self.h5files = []
-        for ifile in list_files:
-            h5file_path = ifile.replace('.root', '.h5')
-            if not os.path.isfile(h5file_path):
-                os.system(f'python convertNanoToHDF5_L1triggerToDeepMET.py -i {ifile} -o {h5file_path}')
-            self.h5files.append(h5file_path)
-        for i, file_name in enumerate(self.h5files):
-            with h5py.File(file_name, "r") as h5_file:
-                self.open_files.append(h5_file)
-                nEntries = len(h5_file['X'])
-                self.global_IDs.append(np.arange(running_total, running_total+nEntries))
-                self.local_IDs.append(np.arange(0, nEntries))
-                self.file_mapping.append(np.repeat([i], nEntries))
-                running_total += nEntries
-                h5_file.close()
-        self.global_IDs = np.concatenate(self.global_IDs)
-        self.local_IDs = np.concatenate(self.local_IDs)
-        self.file_mapping = np.concatenate(self.file_mapping)
-        self.on_epoch_end()
+    embeddings = []
+    inputs = [inputs_cont, pxpy]
+    for i_emb in range(n_features_cat):
+        input_cat = Input(shape=(number_of_pupcandis, ), name='input_cat{}'.format(i_emb))
+        inputs.append(input_cat)
+        embedding = Embedding(
+            input_dim=embedding_input_dim[i_emb],
+            output_dim=emb_out_dim,
+            embeddings_initializer=initializers.RandomNormal(
+                mean=0,
+                stddev=0.4/emb_out_dim),
+            name='embedding{}'.format(i_emb))(input_cat)
+        embeddings.append(embedding)
 
-    def __len__(self):
-        'Denotes the number of batches per epoch'
-        return int(np.ceil(len(self.global_IDs) / self.batch_size))
+    puppi_pt = Input(shape=(1), name='puppi_pt')
+    inputs.append(puppi_pt)
 
-    def __getitem__(self, index):
-        'Generate one batch of data'
-        # Generate indexes of the batch
-        indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
-        files = self.file_mapping[index*self.batch_size:(index+1)*self.batch_size]
-        unique_files = np.unique(files)
-        starts = np.array([min(indexes[files == i]) for i in unique_files])
-        stops = np.array([max(indexes[files == i]) for i in unique_files])
+    # can concatenate all 3 if updated in hls4ml, for now; do it pairwise
+    # x = Concatenate()([inputs_cont] + embeddings)
+    emb_concat = Concatenate()(embeddings)
+    x = Concatenate()([inputs_cont, emb_concat])
 
-        # Check if files needed open (if not open them)
-        # Also if file is not needed, close it
-        for ifile, file_name in enumerate(self.h5files):
-            if ifile in unique_files:
-                if self.open_files[ifile] is None:
-                    self.open_files[ifile] = h5py.File(file_name, "r")
-            else:
-                if self.open_files[ifile] is not None:
-                    self.open_files[ifile].close()
-                    self.open_files[ifile] = None
+    for i_dense in range(n_dense_layers):
+        x = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(x)
+        x = BatchNormalization(momentum=0.95)(x)
+        x = Activation(activation=activation)(x)
 
-        # Generate data
-        return self.__data_generation(unique_files, starts, stops)
+    if t_mode == 0:
+        x = GlobalAveragePooling1D(name='pool')(x)
+        x = Dense(2, name='output', activation='linear')(x)
 
-    def on_epoch_end(self):
-        'Updates indexes after each epoch'
-        self.indexes = self.local_IDs
+    if t_mode == 1:
+        if with_bias:
+            b = Dense(2, name='met_bias', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
+            pxpy = Add()([pxpy, b])
+        w = Dense(1, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
+        w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
+        x = Multiply()([w, pxpy])
 
-    def deltaR_calc(self, eta1, phi1, eta2, phi2):
-        """ calculate deltaR """
-        dphi = (phi1-phi2)
-        gt_pi_idx = (dphi > np.pi)
-        lt_pi_idx = (dphi < -np.pi)
-        dphi[gt_pi_idx] -= 2*np.pi
-        dphi[lt_pi_idx] += 2*np.pi
-        deta = eta1-eta2
-        return np.hypot(deta, dphi)
+        x = GlobalAveragePooling1D(name='output')(x)
+        x = DivPuppi()(x,puppi_pt)
+    outputs = [x, puppi_pt]
 
-    def kT_calc(self, pti, ptj, dR):
-        min_pt = np.minimum(pti, ptj)
-        kT = min_pt * dR
-        return kT
+    keras_model = Model(inputs=inputs, outputs=outputs)
 
-    def z_calc(self, pti, ptj):
-        epsilon = 1.0e-12
-        min_pt = np.minimum(pti, ptj)
-        z = min_pt/(pti + ptj + epsilon)
-        return z
+    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1.]), np.array([-1.]), np.array([0.]), np.array([1.])])
 
-    def mass2_calc(self, pi, pj):
-        pij = pi + pj
-        m2 = pij[:, :, 0]**2 - pij[:, :, 1]**2 - pij[:, :, 2]**2 - pij[:, :, 3]**2
-        return m2
+    return keras_model
 
-    def __data_generation(self, unique_files, starts, stops):
-        'Generates data containing batch_size samples'
-        # X : (n_samples, n_dim, n_channels)
-        # y : (n_samples, 2)
-        Xs = []
-        ys = []
 
-        # Generate data
-        for ifile, start, stop in zip(unique_files, starts, stops):
-            self.X, self.y = self.__get_features_labels(ifile, start, stop)
-            Xs.append(self.X)
-            ys.append(self.y)
+def dense_embedding_quantized(n_features=6,
+                              n_features_cat=2,
+                              number_of_pupcandis=100,
+                              embedding_input_dim={0: 13, 1: 3},
+                              emb_out_dim=2,
+                              with_bias=True,
+                              t_mode=0,
+                              logit_total_bits=7,
+                              logit_int_bits=2,
+                              activation_total_bits=7,
+                              logit_quantizer='quantized_bits',
+                              activation_quantizer='quantized_relu',
+                              activation_int_bits=2,
+                              alpha=1,
+                              use_stochastic_rounding=False,
+                              units=[64, 32, 16]):
+    n_dense_layers = len(units)
 
-        # Stack data if going over multiple files
-        if len(unique_files) > 1:
-            self.X = np.concatenate(Xs, axis=0)
-            self.y = np.concatenate(ys, axis=0)
+    logit_quantizer = getattr(qkeras.quantizers, logit_quantizer)(logit_total_bits, logit_int_bits, alpha=alpha, use_stochastic_rounding=use_stochastic_rounding)
+    activation_quantizer = getattr(qkeras.quantizers, activation_quantizer)(activation_total_bits, activation_int_bits)
 
-        # process inputs
-        Y = self.y / (-self.normFac)
-        Xi, Xp, Xc1, Xc2 = preProcessing(self.X, self.normFac)
+    inputs_cont = Input(shape=(number_of_pupcandis, n_features-2), name='input_cont')
+    pxpy = Input(shape=(number_of_pupcandis, 2), name='input_pxpy')
 
-        puppi_px = np.sum(Xp[:,:,0], axis=1)
-        puppi_py = np.sum(Xp[:,:,1], axis=1)
-        puppi_pt = np.sqrt((puppi_px**2 + puppi_py**2))
+    embeddings = []
+    inputs = [inputs_cont, pxpy]
+    for i_emb in range(n_features_cat):
+        input_cat = Input(shape=(number_of_pupcandis, ), name='input_cat{}'.format(i_emb))
+        inputs.append(input_cat)
+        embedding = Embedding(
+            input_dim=embedding_input_dim[i_emb],
+            output_dim=emb_out_dim,
+            embeddings_initializer=initializers.RandomNormal(
+                mean=0,
+                stddev=0.4/emb_out_dim),
+            name='embedding{}'.format(i_emb))(input_cat)
+        embeddings.append(embedding)
 
-        Y_pt = np.sqrt((Y[:,0]**2 + Y[:,1]**2))
+    # can concatenate all 3 if updated in hls4ml, for now; do it pairwise
+    # x = Concatenate()([inputs_cont] + embeddings)
+    emb_concat = Concatenate()(embeddings)
+    x = Concatenate()([inputs_cont, emb_concat])
 
-        Y[:,0] = Y[:,0]/Y_pt
-        Y[:,1] = Y[:,1]/Y_pt
+    for i_dense in range(n_dense_layers):
+        x = QDense(units[i_dense], kernel_quantizer=logit_quantizer, bias_quantizer=logit_quantizer, kernel_initializer='lecun_uniform')(x)
+        x = BatchNormalization(momentum=0.95)(x)
+        x = QActivation(activation=activation_quantizer)(x)
 
-        puppi_pt = np.expand_dims(puppi_pt, axis=-1)
-        Y_pt = np.expand_dims(Y_pt, axis=-1)
+    if t_mode == 0:
+        x = qkeras.qpooling.QGlobalAveragePooling1D(name='pool', quantizer=logit_quantizer)(x)
+        # pool size?
+        outputs = QDense(2, name='output', bias_quantizer=logit_quantizer, kernel_quantizer=logit_quantizer, activation='linear')(x)
 
-        N = self.maxNPF
-        Nr = N*(N-1)
+    if t_mode == 1:
+        if with_bias:
+            b = QDense(2, name='met_bias', kernel_quantizer=logit_quantizer, bias_quantizer=logit_quantizer, kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
+            pxpy = Add()([pxpy, b])
+        w = QDense(1, name='met_weight', kernel_quantizer=logit_quantizer, bias_quantizer=logit_quantizer, kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
+        w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
+        x = Multiply()([w, pxpy])
 
-        if self.compute_ef == 1:
-            eta = Xi[:, :, 1]
-            phi = Xi[:, :, 2]
-            pt = Xi[:, :, 0]
-            if ('m2' in self.edge_list):
-                px = Xp[:, :, 0]
-                py = Xp[:, :, 1]
-                pz = pt*np.sinh(eta)
-                energy = np.sqrt(px**2 + py**2 + pz**2)
-                p4 = np.stack((energy, px, py, pz), axis=-1)
-            receiver_sender_list = [i for i in itertools.product(range(N), range(N)) if i[0] != i[1]]
-            edge_idx = np.array(receiver_sender_list)
-            edge_stack = []
-            if ('dR' in self.edge_list) or ('kT' in self.edge_list):
-                eta1 = eta[:, edge_idx[:, 0]]
-                phi1 = phi[:, edge_idx[:, 0]]
-                eta2 = eta[:, edge_idx[:, 1]]
-                phi2 = phi[:, edge_idx[:, 1]]
-                dR = self.deltaR_calc(eta1, phi1, eta2, phi2)
-                edge_stack.append(dR)
-            if ('kT' in self.edge_list) or ('z' in self.edge_list):
-                pt1 = pt[:, edge_idx[:, 0]]
-                pt2 = pt[:, edge_idx[:, 1]]
-                if ('kT' in self.edge_list):
-                    kT = self.kT_calc(pt1, pt2, dR)
-                    edge_stack.append(kT)
-                if ('z' in self.edge_list):
-                    z = self.z_calc(pt1, pt2)
-                    edge_stack.append(z)
-            if ('m2' in self.edge_list):
-                p1 = p4[:, edge_idx[:, 0], :]
-                p2 = p4[:, edge_idx[:, 1], :]
-                m2 = self.mass2_calc(p1, p2)
-                edge_stack.append(m2)
-            ef = np.stack(edge_stack, axis=-1)
+        x = GlobalAveragePooling1D(name='output')(x)
+    outputs = x
 
-            Xc = [Xc1, Xc2]
-            # dimension parameter for keras model
-            self.emb_input_dim = {i: int(np.max(Xc[i][0:1000])) + 1 for i in range(self.n_features_pf_cat)}
+    keras_model = Model(inputs=inputs, outputs=outputs)
 
-            # Prepare training/val data
-            Yr = [Y,Y_pt]
-            Xr = [Xi, Xp] + Xc + [ef] + [puppi_pt]
-            return Xr, Yr
+    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1.]), np.array([-1.]), np.array([0.]), np.array([1.])])
 
-        else:
-            Xc = [Xc1, Xc2]
-            # dimension parameter for keras model
-            self.emb_input_dim = {i: int(np.max(Xc[i][0:1000])) + 1 for i in range(self.n_features_pf_cat)}
+    return keras_model
 
-            # Prepare training/val data
-            Yr = [Y,Y_pt]
-            Xr = [Xi, Xp] + Xc + [puppi_pt]
-            return Xr, Yr
 
-    def __get_features_labels(self, ifile, entry_start, entry_stop):
-        'Loads data from one file'
+# Create the sender and receiver relations matrices
+def assign_matrices(N, Nr):
+    Rr = np.zeros([N, Nr], dtype=np.float32)
+    Rs = np.zeros([N, Nr], dtype=np.float32)
+    receiver_sender_list = [i for i in itertools.product(range(N), range(N)) if i[0] != i[1]]
+    for i, (r, s) in enumerate(receiver_sender_list):
+        Rr[r, i] = 1
+        Rs[s, i] = 1
+    return Rs, Rr
 
-        # Double check that file is open
-        if self.open_files[ifile] is None:
-            h5_file = h5py.File(file_name, "r")
-        else:
-            h5_file = self.open_files[ifile]
+import tensorflow as tf
+from tensorflow.keras.layers import Layer
 
-        X = h5_file['X'][entry_start:entry_stop+1]
-        y = h5_file['Y'][entry_start:entry_stop+1]
+class weighted_sum_layer(Layer):
+    '''Either does weight times inputs
+    or weight times inputs + bias
+    Input to be provided as:
+      - Weights
+      - ndim biases (if applicable)
+      - ndim items to sum
+    Currently works for 3-dim input, summing over the 2nd axis'''
+    #def __init__(self, ndim=2, with_bias=False, **kwargs):
+    #    super(weighted_sum_layer, self).__init__(**kwargs)
+    #    self.with_bias = with_bias
+    #    self.ndim = ndim
+#
+    #def get_config(self):
+    #    cfg = super(weighted_sum_layer, self).get_config()
+    #    cfg['ndim'] = self.ndim
+    #    cfg['with_bias'] = self.with_bias
+    #    return cfg
 
-        if self.maxNPF < 100:
-            order = X[:, :, 0].argsort(axis=1)[:, ::-1]
-            shape = np.shape(X)
-            for x in range(shape[0]):
-                X[x, :, :] = X[x, order[x], :]
-            X = X[:, 0:self.maxNPF, :]
+    def call(self, inputs):
+        return tf.reduce_sum(inputs, axis=1)
 
-        return X, y
+def graph_embedding(compute_ef, n_features=6,
+                    n_features_cat=2,
+                    activation='relu',
+                    number_of_pupcandis=100,
+                    embedding_input_dim={0: 13, 1: 3},
+                    emb_out_dim=8,
+                    units=[64, 32, 16],
+                    edge_list=[]):
+    n_dense_layers = len(units)
+    name = 'met'
+
+    inputs_cont = Input(shape=(number_of_pupcandis, n_features-2), name='input_cont')
+    pxpy = Input(shape=(number_of_pupcandis, 2), name='input_pxpy')
+
+    embeddings = []
+    inputs = [inputs_cont, pxpy]
+    for i_emb in range(n_features_cat):
+        input_cat = Input(shape=(number_of_pupcandis, ), name='input_cat{}'.format(i_emb))
+        inputs.append(input_cat)
+        embedding = Embedding(
+            input_dim=embedding_input_dim[i_emb],
+            output_dim=emb_out_dim,
+            embeddings_initializer=initializers.RandomNormal(
+                mean=0,
+                stddev=0.4/emb_out_dim),
+            name='embedding{}'.format(i_emb))(input_cat)
+        embeddings.append(embedding)
+
+    N = number_of_pupcandis
+    Nr = N*(N-1)
+    if compute_ef == 1:
+        num_of_edge_feat = len(edge_list)
+        edge_feat = Input(shape=(Nr, num_of_edge_feat), name='edge_feat')
+        inputs.append(edge_feat)
+
+    # can concatenate all 3 if updated in hls4ml, for now; do it pairwise
+    # x = Concatenate()([inputs_cont] + embeddings)
+    emb_concat = Concatenate()(embeddings)
+    x = Concatenate()([inputs_cont, emb_concat])
+
+    N = number_of_pupcandis
+    P = n_features+n_features_cat
+    Nr = N*(N-1)  # number of relations (edges)
+
+    x = BatchNormalization()(x)
+
+    # Swap axes of input data (batch,nodes,features) -> (batch,features,nodes)
+    x = Permute((2, 1), input_shape=x.shape[1:])(x)
+
+    # Marshaling function
+    ORr = Dense(Nr, use_bias=False, trainable=False, name='tmul_{}_1'.format(name))(x)  # Receiving adjacency matrix
+    ORs = Dense(Nr, use_bias=False, trainable=False, name='tmul_{}_2'.format(name))(x)  # Sending adjacency matrix
+    node_feat = Concatenate(axis=1)([ORr, ORs])  # Concatenates Or and Os  ( no relations features Ra matrix )
+    # Outputis new array = [batch, 2x features, edges]
+
+    # Edges MLP
+    h = Permute((2, 1), input_shape=node_feat.shape[1:])(node_feat)
+    edge_units = [64, 32, 16]
+    n_edge_dense_layers = len(edge_units)
+    if compute_ef == 1:
+        h = Concatenate(axis=2, name='concatenate_edge')([h, edge_feat])
+    for i_dense in range(n_edge_dense_layers):
+        h = Dense(edge_units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(h)
+        h = BatchNormalization(momentum=0.95)(h)
+        h = Activation(activation=activation)(h)
+    out_e = h
+
+    # Transpose output and permutes columns 1&2
+    out_e = Permute((2, 1))(out_e)
+
+    # Multiply edges MLP output by receiver nodes matrix Rr
+    out_e = Dense(N, use_bias=False, trainable=False, name='tmul_{}_3'.format(name))(out_e)
+
+    # Nodes MLP (takes as inputs node features and embeding from edges MLP)
+    inp_n = Concatenate(axis=1)([x, out_e])
+
+    # Transpose input and permutes columns 1&2
+    h = Permute((2, 1), input_shape=inp_n.shape[1:])(inp_n)
+
+    # Nodes MLP
+    for i_dense in range(n_dense_layers):
+        h = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(h)
+        h = BatchNormalization(momentum=0.95)(h)
+        h = Activation(activation=activation)(h)
+    w = Dense(1, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(h)
+    w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
+    x = Multiply()([w, pxpy])
+    outputs = weighted_sum_layer(name='output')(x)
+    #outputs = GlobalAveragePooling1D(name='output')(x)
+
+    keras_model = Model(inputs=inputs, outputs=outputs)
+
+    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1.]), np.array([-1.]), np.array([0.]), np.array([1.])])
+
+    # Create a fully connected adjacency matrix
+    Rs, Rr = assign_matrices(N, Nr)
+    keras_model.get_layer('tmul_{}_1'.format(name)).set_weights([Rr])
+    keras_model.get_layer('tmul_{}_2'.format(name)).set_weights([Rs])
+    keras_model.get_layer('tmul_{}_3'.format(name)).set_weights([np.transpose(Rr)])
+
+    return keras_model
