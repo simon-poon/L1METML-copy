@@ -1,6 +1,6 @@
 import tensorflow
 import tensorflow.keras.backend as K
-from tensorflow.keras import optimizers, initializers, losses
+from tensorflow.keras import optimizers, initializers
 from tensorflow.keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, EarlyStopping, CSVLogger
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.models import Model, load_model
@@ -135,7 +135,6 @@ def train_dataGenerator(args):
     compute_ef = args.compute_edge_feat
     edge_list = args.edge_features
     model_output = args.model_output
-    num_of_bins = int(args.num_of_bins)
 
     # separate files into training, validation, and testing
     filesList = glob(os.path.join(inputPath, '*.root'))
@@ -172,9 +171,9 @@ def train_dataGenerator(args):
         Xr_train, Yr_train = trainGenerator[0]  # this apparenly calls all the attributes, so that we can get the correct input dimensions (train_generator.emb_input_dim)
 
     else:
-        trainGenerator = DataGenerator(list_files=train_filesList, batch_size=batch_size, num_of_bins=num_of_bins)
-        validGenerator = DataGenerator(list_files=valid_filesList, batch_size=batch_size, num_of_bins=num_of_bins)
-        testGenerator = DataGenerator(list_files=test_filesList, batch_size=batch_size, num_of_bins=num_of_bins)
+        trainGenerator = DataGenerator(list_files=train_filesList, batch_size=batch_size)
+        validGenerator = DataGenerator(list_files=valid_filesList, batch_size=batch_size)
+        testGenerator = DataGenerator(list_files=test_filesList, batch_size=batch_size)
         Xr_train, Yr_train = trainGenerator[0]  # this apparenly calls all the attributes, so that we can get the correct input dimensions (train_generator.emb_input_dim)
 
     # Load training model
@@ -184,18 +183,17 @@ def train_dataGenerator(args):
                                           emb_out_dim=2,
                                           n_features_cat=n_features_pf_cat,
                                           activation='tanh',
-                                          #embedding_input_dim=trainGenerator.emb_input_dim,
+                                          embedding_input_dim=trainGenerator.emb_input_dim,
                                           number_of_pupcandis=maxNPF,
                                           t_mode=t_mode,
                                           with_bias=False,
-                                          units=units,
-                                          num_of_bins=num_of_bins)
+                                          units=units)
         elif model == 'graph_embedding':
             keras_model = graph_embedding(n_features=n_features_pf,
                                           emb_out_dim=2,
                                           n_features_cat=n_features_pf_cat,
                                           activation='tanh',
-                                          #embedding_input_dim=trainGenerator.emb_input_dim,
+                                          embedding_input_dim=trainGenerator.emb_input_dim,
                                           number_of_pupcandis=maxNPF,
                                           units=units, compute_ef=compute_ef, edge_list=edge_list)
 
@@ -209,7 +207,7 @@ def train_dataGenerator(args):
                                                 emb_out_dim=2,
                                                 n_features_cat=n_features_pf_cat,
                                                 activation_quantizer='quantized_relu',
-                                                #embedding_input_dim=trainGenerator.emb_input_dim,
+                                                embedding_input_dim=trainGenerator.emb_input_dim,
                                                 number_of_pupcandis=maxNPF,
                                                 t_mode=t_mode,
                                                 with_bias=False,
@@ -223,13 +221,12 @@ def train_dataGenerator(args):
                                                 units=units)
 
     # Check which model will be used (0 for L1MET Model, 1 for DeepMET Model)
-    loss_dict = [custom_loss, losses.SparseCategoricalCrossentropy(from_logits=False)]
     if t_mode == 0:
-        keras_model.compile(optimizer='adam', loss=loss_dict, metrics=['mean_absolute_error', 'mean_squared_error'])
+        keras_model.compile(optimizer='adam', loss=custom_loss, metrics=['mean_absolute_error', 'mean_squared_error'])
         verbose = 1
     elif t_mode == 1:
         optimizer = optimizers.Adam(lr=1., clipnorm=1.)
-        keras_model.compile(loss=loss_dict, optimizer=optimizer,
+        keras_model.compile(loss=[custom_loss,custom_loss], optimizer=optimizer,
                             metrics=['mean_absolute_error', 'mean_squared_error'])
         verbose = 1
 
@@ -246,14 +243,13 @@ def train_dataGenerator(args):
 
     end_time = time.time()  # check end time
 
-    predict_test = keras_model.predict(testGenerator)[0] * normFac
-    print(predict_test.shape)
+    predict_test = keras_model.predict(testGenerator) * normFac
     all_PUPPI_pt = []
     Yr_test = []
     for (Xr, Yr) in tqdm.tqdm(testGenerator):
-        puppi_pt = np.concatenate((Xr[:,0:1,-1], Xr[:,1:2,-1]),axis=-1)
+        puppi_pt = np.sum(Xr[1], axis=1)
         all_PUPPI_pt.append(puppi_pt)
-        Yr_test.append(Yr[0])
+        Yr_test.append(Yr)
     
 
     PUPPI_pt = normFac * np.concatenate(all_PUPPI_pt)
@@ -541,7 +537,6 @@ def main():
     parser.add_argument('--maxNPF', action='store', type=int, required=False, default=100, help='maximum number of PUPPI candidates')
     parser.add_argument('--edge-features', action='store', required=False, nargs='+', help='which edge features to use (i.e. dR, kT, z, m2)')
     parser.add_argument('--model-output', action='store', type=str, required=False, help='output path to save keras model')
-    parser.add_argument('--num-of-bins', action='store', type=int, required=False, help='Number of bins for multi-bin loss')
 
     args = parser.parse_args()
     workflowType = args.workflowType
