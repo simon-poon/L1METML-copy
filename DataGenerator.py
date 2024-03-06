@@ -131,13 +131,17 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
         Y = self.y / (-self.normFac)
         Xi, Xp, Xc1, Xc2 = preProcessing(self.X, self.normFac)
 
-        puppi_px = np.sum(Xp[:,:,0:1], axis=1)
-        puppi_py = np.sum(Xp[:,:,1:2], axis=1)
+        puppi_px = np.sum(Xp[:,:,0], axis=1)
+        puppi_py = np.sum(Xp[:,:,1], axis=1)
         puppi_pt = np.sqrt((puppi_px**2 + puppi_py**2))
 
         Y_pt = np.sqrt((Y[:,0]**2 + Y[:,1]**2))
+
         Y[:,0] = Y[:,0]/Y_pt
         Y[:,1] = Y[:,1]/Y_pt
+
+        puppi_pt = np.expand_dims(puppi_pt, axis=-1)
+        Y_pt = np.expand_dims(Y_pt, axis=-1)
 
         N = self.maxNPF
         Nr = N*(N-1)
