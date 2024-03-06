@@ -1,5 +1,5 @@
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Dense, Embedding, BatchNormalization, Dropout, Lambda, Conv1D, SpatialDropout1D, Concatenate, Flatten, Reshape, Multiply, Add, GlobalAveragePooling1D, Activation, Permute, Softmax, Layer
+from tensorflow.keras.layers import Input, Dense, Embedding, BatchNormalization, Dropout, Lambda, Conv1D, SpatialDropout1D, Concatenate, Flatten, Reshape, Multiply, Add, GlobalAveragePooling1D, Activation, Permute, Layer
 import tensorflow.keras.backend as K
 import tensorflow as tf
 from tensorflow import slice
@@ -9,102 +9,52 @@ from qkeras.qlayers import QDense, QActivation
 import numpy as np
 import itertools
 
-class weighted_sum_layer(Layer):
-    '''Either does weight times inputs
-    or weight times inputs + bias
-    Input to be provided as:
-      - Weights
-      - ndim biases (if applicable)
-      - ndim items to sum
-    Currently works for 3-dim input, summing over the 2nd axis'''
-    #def __init__(self, ndim=2, with_bias=False, **kwargs):
-    #    super(weighted_sum_layer, self).__init__(**kwargs)
-    #    self.with_bias = with_bias
-    #    self.ndim = ndim
-#
-    #def get_config(self):
-    #    cfg = super(weighted_sum_layer, self).get_config()
-    #    cfg['ndim'] = self.ndim
-    #    cfg['with_bias'] = self.with_bias
-    #    return cfg
-
-    def call(self, inputs):
-        return tf.reduce_sum(inputs, axis=1)
-
-class add_axis(Layer):
-    
-    def call(self, inputs):
-        exp_dim = tf.expand_dims(inputs, axis=-1)
-        #repeat = tf.repeat(exp_dim, 2, axis=-1)
-        #reshape = tf.reshape(repeat, [None, 100, 2, num_of_bins])
-        return exp_dim
-
-class bin_multiply(Layer):
-    def __init__(self, num_of_bins=50, **kwargs):
-        super(bin_multiply, self).__init__(**kwargs)
-        self.num_of_bins = num_of_bins
-        bins = np.linspace(-500,500, self.num_of_bins-1)
-        bin_center = bins - (bins[1] - bins[0])/2
-        self.bin_center = np.append(bin_center, 500 + (bins[1] - bins[0])/2)
-        #self.bin_center = tf.convert_to_tensor(bin_center, dtype=tf.float32)
-    
-    def call(self, prob):
-        #px = tf.gather(self.bin_center, [0], axis=-1)
-        #py = tf.gather(self.bin_center, [1], axis=-1)
-        bin_center = tf.convert_to_tensor(self.bin_center, dtype=tf.float32)
-
-        prob_x = tf.gather(prob, [0], axis=-2)
-        prob_x = tf.squeeze(prob_x, axis=-2)
-
-        prob_y = tf.gather(prob, [1], axis=-2)
-        prob_y = tf.squeeze(prob_y, axis=-2)
-
-        pred_px = tf.reduce_sum(bin_center * prob_x, axis=-1, keepdims=True)
-        pred_py = tf.reduce_sum(bin_center * prob_y, axis=-1, keepdims=True)
-
-        pred_pxpy = tf.concat([pred_px, pred_py], axis=-1)
-
+class DivPuppi(Layer):
+    def call(self, pred, puppi):
+        init_px = tf.gather(pred, [0], axis=-1)
+        puppi_px = tf.gather(puppi, [0], axis=-1)
+        px = init_px/puppi_px
+        init_py = tf.gather(pred, [1], axis=-1)
+        puppi_py = tf.gather(puppi, [1], axis=-1)
+        py = init_py/puppi_py
+        pred_pxpy = tf.concat([px, py], axis=-1)
         return pred_pxpy
-
-    def get_config(self):
-        cfg = super(bin_multiply, self).get_config()
-        cfg['num_of_bins'] = self.num_of_bins
-        cfg['bin_center'] = self.bin_center
-        return cfg
 
 def dense_embedding(n_features=6,
                     n_features_cat=2,
                     activation='relu',
                     number_of_pupcandis=100,
-                    #embedding_input_dim={0: 13, 1: 3},
+                    embedding_input_dim={0: 13, 1: 3},
                     emb_out_dim=8,
                     with_bias=True,
                     t_mode=0,
-                    units=[64, 32, 16],
-                    num_of_bins=50):
+                    units=[64, 32, 16]):
     n_dense_layers = len(units)
 
-    inputs_cont = Input(shape=(2, 5), name='input_cont')
-    #pxpy = Input(shape=(2), name='input_pxpy')
+    inputs_cont = Input(shape=(number_of_pupcandis, n_features-2), name='input_cont')
+    pxpy = Input(shape=(number_of_pupcandis, 2), name='input_pxpy')
 
-    inputs = [inputs_cont]
-    #for i_emb in range(n_features_cat):
-    #    input_cat = Input(shape=(number_of_pupcandis, ), name='input_cat{}'.format(i_emb))
-    #    inputs.append(input_cat)
-    #    embedding = Embedding(
-    #        input_dim=embedding_input_dim[i_emb],
-    #        output_dim=emb_out_dim,
-    #        embeddings_initializer=initializers.RandomNormal(
-    #            mean=0,
-    #            stddev=0.4/emb_out_dim),
-    #        name='embedding{}'.format(i_emb))(input_cat)
-    #    embeddings.append(embedding)
+    embeddings = []
+    inputs = [inputs_cont, pxpy]
+    for i_emb in range(n_features_cat):
+        input_cat = Input(shape=(number_of_pupcandis, ), name='input_cat{}'.format(i_emb))
+        inputs.append(input_cat)
+        embedding = Embedding(
+            input_dim=embedding_input_dim[i_emb],
+            output_dim=emb_out_dim,
+            embeddings_initializer=initializers.RandomNormal(
+                mean=0,
+                stddev=0.4/emb_out_dim),
+            name='embedding{}'.format(i_emb))(input_cat)
+        embeddings.append(embedding)
+
+    puppi_pt = Input(shape=(2), name='puppi_pt')
+    inputs.append(puppi_pt)
 
     # can concatenate all 3 if updated in hls4ml, for now; do it pairwise
     # x = Concatenate()([inputs_cont] + embeddings)
-    #emb_concat = Concatenate()(embeddings)
-    #x = Concatenate()([inputs_cont, emb_concat])
-    x = inputs_cont
+    emb_concat = Concatenate()(embeddings)
+    x = Concatenate()([inputs_cont, emb_concat])
 
     for i_dense in range(n_dense_layers):
         x = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(x)
@@ -112,26 +62,24 @@ def dense_embedding(n_features=6,
         x = Activation(activation=activation)(x)
 
     if t_mode == 0:
-        raise ValueError("Current version does not support this mode")
-        #x = GlobalAveragePooling1D(name='pool')(x)
-        #x = Dense(2, name='output', activation='linear')(x)
+        x = GlobalAveragePooling1D(name='pool')(x)
+        x = Dense(2, name='output', activation='linear')(x)
 
     if t_mode == 1:
-        #if with_bias:
-        #    b = Dense(num_of_bins, name='met_bias', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
-        #    pxpy = Add()([pxpy, b])
-        x = Dense(num_of_bins, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
-        w = BatchNormalization(momentum=0.95)(x)
-        w = Softmax(axis=-1)(w)
-        m = bin_multiply(num_of_bins=num_of_bins)(w)
-        #x = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
-        #x = Multiply()([w, pxpy])
+        if with_bias:
+            b = Dense(2, name='met_bias', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
+            pxpy = Add()([pxpy, b])
+        w = Dense(1, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
+        w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
+        x = Multiply()([w, pxpy])
 
-    outputs = [m,w]
+        x = GlobalAveragePooling1D(name='output')(x)
+        x = DivPuppi()(x,puppi_pt)
+    outputs = [x, puppi_pt]
 
     keras_model = Model(inputs=inputs, outputs=outputs)
 
-    #keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1.,1.]]), np.array([-1.,-1.]), np.array([0.,0.]), np.array([1.,1.])])
+    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1.]), np.array([-1.]), np.array([0.]), np.array([1.])])
 
     return keras_model
 
@@ -220,6 +168,27 @@ def assign_matrices(N, Nr):
 import tensorflow as tf
 from tensorflow.keras.layers import Layer
 
+class weighted_sum_layer(Layer):
+    '''Either does weight times inputs
+    or weight times inputs + bias
+    Input to be provided as:
+      - Weights
+      - ndim biases (if applicable)
+      - ndim items to sum
+    Currently works for 3-dim input, summing over the 2nd axis'''
+    #def __init__(self, ndim=2, with_bias=False, **kwargs):
+    #    super(weighted_sum_layer, self).__init__(**kwargs)
+    #    self.with_bias = with_bias
+    #    self.ndim = ndim
+#
+    #def get_config(self):
+    #    cfg = super(weighted_sum_layer, self).get_config()
+    #    cfg['ndim'] = self.ndim
+    #    cfg['with_bias'] = self.with_bias
+    #    return cfg
+
+    def call(self, inputs):
+        return tf.reduce_sum(inputs, axis=1)
 
 def graph_embedding(compute_ef, n_features=6,
                     n_features_cat=2,
