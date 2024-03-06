@@ -14,7 +14,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
     'Generates data for Keras'
 
     def __init__(self, list_files, batch_size=1024, n_dim=100, maxNPF=100, compute_ef=0,
-                 max_entry=100000000, edge_list=[], num_of_bins=50):
+                 max_entry=100000000, edge_list=[]):
         'Initialization'
         self.n_features_pf = 6
         self.n_features_pf_cat = 2
@@ -30,7 +30,6 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
         self.maxNPF = maxNPF
         self.compute_ef = compute_ef
         self.edge_list = edge_list
-        self.num_of_bins = num_of_bins
         running_total = 0
 
         self.h5files = []
@@ -130,20 +129,22 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
 
         # process inputs
         Y = self.y / (-self.normFac)
-        Xi, Xp = preProcessing(self.X, self.normFac)
+        Xi, Xp, Xc1, Xc2 = preProcessing(self.X, self.normFac)
+
+        puppi_px = np.sum(Xp[:,:,0], axis=1)
+        puppi_py = np.sum(Xp[:,:,1], axis=1)
+        puppi_pt = np.sqrt((puppi_px**2 + puppi_py**2))
+
+        Y_pt = np.sqrt((Y[:,0]**2 + Y[:,1]**2))
+
+        Y[:,0] = Y[:,0]/Y_pt
+        Y[:,1] = Y[:,1]/Y_pt
+
+        puppi_pt = np.expand_dims(puppi_pt, axis=-1)
+        Y_pt = np.expand_dims(Y_pt, axis=-1)
 
         N = self.maxNPF
         Nr = N*(N-1)
-
-        bins = np.linspace(-500,500, self.num_of_bins-1)
-        truth_bins_x = np.digitize(Y[:,0:1], bins)
-        truth_bins_y = np.digitize(Y[:,1:2], bins)
-        truth_bins_pxpy = np.concatenate([truth_bins_x, truth_bins_y],axis=-1)
-        truth_bins_pxpy = np.expand_dims(truth_bins_pxpy,axis=-1)
-
-        px_feat = np.concatenate((Xi, Xp[:,0:1]), axis=-1)
-        py_feat = np.concatenate((Xi, Xp[:,1:2]), axis=-1)
-        pxpy_feat = np.stack((px_feat, py_feat), axis=1)
 
         if self.compute_ef == 1:
             eta = Xi[:, :, 1]
@@ -181,21 +182,23 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
                 edge_stack.append(m2)
             ef = np.stack(edge_stack, axis=-1)
 
-            #Xc = [Xc1, Xc2]
+            Xc = [Xc1, Xc2]
             # dimension parameter for keras model
+            self.emb_input_dim = {i: int(np.max(Xc[i][0:1000])) + 1 for i in range(self.n_features_pf_cat)}
 
             # Prepare training/val data
-            Yr = Y, truth
-            Xr = pxpy_feat
+            Yr = [Y,Y_pt]
+            Xr = [Xi, Xp] + Xc + [ef] + [puppi_pt]
             return Xr, Yr
 
         else:
+            Xc = [Xc1, Xc2]
             # dimension parameter for keras model
-        
+            self.emb_input_dim = {i: int(np.max(Xc[i][0:1000])) + 1 for i in range(self.n_features_pf_cat)}
 
             # Prepare training/val data
-            Yr = [Y, truth_bins_pxpy]
-            Xr = pxpy_feat
+            Yr = [Y,Y_pt]
+            Xr = [Xi, Xp] + Xc + [puppi_pt]
             return Xr, Yr
 
     def __get_features_labels(self, ifile, entry_start, entry_stop):
