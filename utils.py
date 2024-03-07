@@ -36,29 +36,21 @@ def preProcessing(A, normFac, EVT=None):
     px = A[:, :, 1:2] / norm
     py = A[:, :, 2:3] / norm
     eta = A[:, :, 3:4]
-    #phi = A[:, :, 4:5]
-    #puppi = A[:, :, 5:6]
+    phi = A[:, :, 4:5]
+    puppi = A[:, :, 5:6]
 
     # remove outliers
     pt[np.where(np.abs(pt > 500))] = 0.
     px[np.where(np.abs(px > 500))] = 0.
     py[np.where(np.abs(py > 500))] = 0.
 
-    pz = pt*np.sinh(eta)
-    ht = np.sum(pt, axis=1)
-    event_px = np.sum(px, axis=1)
-    event_py = np.sum(py, axis=1)
-    event_pz = np.sum(pz, axis=1)
-    event_pt = np.sqrt((event_px**2 + event_py**2))
-    event_phi = np.arctan2(event_py, event_px)
-    event_eta = np.arcsinh(event_pz/(event_pt+1e-12))
-    inputs = np.concatenate((event_pt, event_eta, event_phi, ht), axis=1)
-    pxpy = np.concatenate((event_px, event_py), axis=1)
+    inputs = np.concatenate((pt, eta, phi, puppi), axis=2)
+    pxpy = np.concatenate((px, py), axis=2)
 
-    #inputs_cat0 = A[:, :, 6]  # encoded PF pdgId
-    #inputs_cat1 = A[:, :, 7]  # encoded PF charge
+    inputs_cat0 = A[:, :, 6]  # encoded PF pdgId
+    inputs_cat1 = A[:, :, 7]  # encoded PF charge
 
-    return inputs, pxpy #, inputs_cat0, inputs_cat1
+    return inputs, pxpy, inputs_cat0, inputs_cat1
 
 
 def MakePlots(trueXY, mlXY, puppiXY, path_out):
