@@ -27,7 +27,7 @@ from Write_MET_binned_histogram import *
 from cyclical_learning_rate import CyclicLR
 from models import *
 from utils import *
-from loss import custom_loss
+from loss import *
 from DataGenerator import DataGenerator
 
 import matplotlib.pyplot as plt
@@ -222,11 +222,11 @@ def train_dataGenerator(args):
 
     # Check which model will be used (0 for L1MET Model, 1 for DeepMET Model)
     if t_mode == 0:
-        keras_model.compile(optimizer='adam', loss=custom_loss, metrics=['mean_absolute_error', 'mean_squared_error'])
+        keras_model.compile(optimizer='adam', loss=[custom_loss,custom_loss_2], metrics=['mean_absolute_error', 'mean_squared_error'])
         verbose = 1
     elif t_mode == 1:
         optimizer = optimizers.Adam(lr=1., clipnorm=1.)
-        keras_model.compile(loss=[custom_loss,custom_loss], optimizer=optimizer,
+        keras_model.compile(loss=[custom_loss,custom_loss_2], optimizer=optimizer,
                             metrics=['mean_absolute_error', 'mean_squared_error'])
         verbose = 1
 
@@ -243,17 +243,20 @@ def train_dataGenerator(args):
 
     end_time = time.time()  # check end time
 
-    predict_test = keras_model.predict(testGenerator) * normFac
+    predict_test = keras_model.predict(testGenerator)
     all_PUPPI_pt = []
     Yr_test = []
+    puppi_pt_alt = []
     for (Xr, Yr) in tqdm.tqdm(testGenerator):
-        puppi_pt = np.sum(Xr[1], axis=1)
+        puppi_pt = np.sum(Xr[0], axis=1)
+        puppi_pt_alt.append(Xr[-1])
         all_PUPPI_pt.append(puppi_pt)
-        Yr_test.append(Yr)
+        Yr_test.append(Yr[0]*Yr[1])
     
-
-    PUPPI_pt = normFac * np.concatenate(all_PUPPI_pt)
-    Yr_test = normFac * np.concatenate(Yr_test)
+    PUPPI_pt = np.concatenate(all_PUPPI_pt)
+    Yr_test = np.concatenate(Yr_test)
+    puppi_pt_alt = np.concatenate(puppi_pt_alt)
+    predict_test = predict_test[0] * puppi_pt_alt
 
     test(Yr_test, predict_test, PUPPI_pt, path_out)
 
