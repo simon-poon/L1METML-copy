@@ -6,8 +6,6 @@ def custom_loss(y_true, y_pred):
     import tensorflow.keras.backend as K
     import tensorflow as tf
 
-    tf.print(y_true[0:10,:])
-
     px_truth = K.flatten(y_true[:, 0])
     py_truth = K.flatten(y_true[:, 1])
     px_pred = K.flatten(y_pred[:, 0])
@@ -58,3 +56,6 @@ def custom_loss(y_true, y_pred):
     #loss += 200.*dev
     #loss += 5000.*dev
     return loss
+
+def custom_loss_2(y_true, y_pred):
+    return 1
