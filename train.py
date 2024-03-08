@@ -243,6 +243,9 @@ def train_dataGenerator(args):
 
     end_time = time.time()  # check end time
 
+    if isinstance(model_output,str)==True:
+        keras_model.save(model_output)
+    
     predict_test = keras_model.predict(testGenerator)
     all_PUPPI_pt = []
     Yr_test = []
@@ -251,13 +254,13 @@ def train_dataGenerator(args):
         puppi_pt = np.sum(Xr[0], axis=1)
         puppi_pt_alt.append(Xr[-1])
         all_PUPPI_pt.append(puppi_pt)
-        Yr_test.append(Yr[0]*Yr[1])
+        Yr_test.append(Yr[0]*(Yr[1]+1e-12))
     
     PUPPI_pt = np.concatenate(all_PUPPI_pt)
     Yr_test = np.concatenate(Yr_test)
     puppi_pt_alt = np.concatenate(puppi_pt_alt)
     predict_test = predict_test[0] * puppi_pt_alt
-
+    PUPPI_pt = PUPPI_pt * (puppi_pt_alt+1e-12)
     test(Yr_test, predict_test, PUPPI_pt, path_out)
 
     fi = open("{}time.txt".format(path_out), 'w')
@@ -266,9 +269,6 @@ def train_dataGenerator(args):
     fi.write("Working Time (m) : {}".format((end_time - start_time)/60.))
 
     fi.close()
-    
-    if isinstance(model_output,str)==True:
-        keras_model.save(model_output)
 
     '''
     load_keras_model = load_model('/l1metmlvol/saved_keras_models/def_model_100pf_300epochs', custom_objects={ 'custom_loss': custom_loss}, compile=True)
