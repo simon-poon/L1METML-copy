@@ -135,10 +135,10 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
         puppi_py = np.sum(Xp[:,:,1], axis=1)
         puppi_pt = np.sqrt((puppi_px**2 + puppi_py**2))
 
-        Y_pt = np.sqrt((Y[:,0]**2 + Y[:,1]**2))
+        #Y_pt = np.sqrt((Y[:,0]**2 + Y[:,1]**2))
 
-        Y[:,0] = Y[:,0]/Y_pt
-        Y[:,1] = Y[:,1]/Y_pt
+        Y[:,0] = Y[:,0]/(puppi_pt + 1e-12)
+        Y[:,1] = Y[:,1]/(puppi_pt + 1e-12)
 
         puppi_pt = np.expand_dims(puppi_pt, axis=-1)
         Y_pt = np.expand_dims(Y_pt, axis=-1)
@@ -187,7 +187,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
             self.emb_input_dim = {i: int(np.max(Xc[i][0:1000])) + 1 for i in range(self.n_features_pf_cat)}
 
             # Prepare training/val data
-            Yr = [Y,Y_pt]
+            Yr = [Y,puppi_pt]
             Xr = [Xi, Xp] + Xc + [ef] + [puppi_pt]
             return Xr, Yr
 
@@ -197,7 +197,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
             self.emb_input_dim = {i: int(np.max(Xc[i][0:1000])) + 1 for i in range(self.n_features_pf_cat)}
 
             # Prepare training/val data
-            Yr = [Y,Y_pt]
+            Yr = [Y,puppi_pt]
             Xr = [Xi, Xp] + Xc + [puppi_pt]
             return Xr, Yr
 
