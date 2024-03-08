@@ -141,7 +141,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
         Y[:,1] = Y[:,1]/(puppi_pt + 1e-12)
 
         puppi_pt = np.expand_dims(puppi_pt, axis=-1)
-        Y_pt = np.expand_dims(Y_pt, axis=-1)
+        #Y_pt = np.expand_dims(Y_pt, axis=-1)
 
         N = self.maxNPF
         Nr = N*(N-1)
