@@ -12,7 +12,8 @@ def custom_loss(y_true, y_pred):
     py_pred = K.flatten(y_pred[:, 1])
 
     pt_truth = K.sqrt(px_truth*px_truth + py_truth*py_truth)
-
+    pt_pred = K.sqrt(px_pred*px_pred + py_pred*py_pred)
+    
     #px_truth1 = px_truth / pt_truth
     #py_truth1 = py_truth / pt_truth
 
@@ -51,7 +52,7 @@ def custom_loss(y_true, y_pred):
     #dev += tf.abs(tf.reduce_sum(upar_pred_pos_bin5) + tf.reduce_sum(upar_pred_neg_bin5))
     #dev /= norm
 
-    loss = 0.5*K.mean((px_pred - px_truth)**2 + (py_pred - py_truth)**2)
+    loss = 1*K.mean((pt_pred - pt_truth)**2) + 0.5*K.mean((px_pred - px_truth)**2 + (py_pred - py_truth)**2)
 
     #loss += 200.*dev
     #loss += 5000.*dev
