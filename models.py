@@ -111,12 +111,21 @@ def FC_loc(x, pxpy, units, n_dense_layers, activation, t_mode=1):
         x = Dense(2, name='output', activation='linear')(x)
 
     if t_mode == 1:
-        w = Dense(1, name='met_weight_loc', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
-        w = BatchNormalization(trainable=False, name='met_weight_minus_one_loc', epsilon=False)(w)
+        w = Dense(1, name='met_weight_class', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
+        w = BatchNormalization(trainable=False, name='met_weight_minus_one_class', epsilon=False)(w)
         x = Multiply()([w, pxpy])
+        x = weighted_sum_layer(name='weighted_sum_layer_class')(x)
 
-        x = GlobalAveragePooling1D(name='output')(x)
-        return x
+        m = add_axis()(x)
+
+        units_list = [32,32]
+        for i_dense in range(2):
+            m = Dense(units_list[i_dense], activation='linear', kernel_initializer='lecun_uniform')(m)
+            m = BatchNormalization(momentum=0.95)(m)
+            m = Activation(activation=activation)(m)
+        m = Dense(num_of_bins, activation='linear', kernel_initializer='lecun_uniform')(m)
+        w = BatchNormalization(momentum=0.95)(m)
+        return w
 
 def dense_embedding(n_features=6,
                     n_features_cat=2,
@@ -155,7 +164,7 @@ def dense_embedding(n_features=6,
     m = FC_loc(x, pxpy, units, n_dense_layers, activation)
     w = FC_class(x, pxpy, num_of_bins, units, n_dense_layers, activation)
 
-    outputs = [m,w]
+    outputs = m,w
 
     keras_model = Model(inputs=inputs, outputs=outputs)
 
