@@ -72,6 +72,52 @@ class bin_multiply(Layer):
         cfg['bin_center'] = self.bin_center
         return cfg
 
+def FC_class(x, pxpy, num_of_bins, units, n_dense_layers, activation, t_mode=1):
+    for i_dense in range(n_dense_layers):
+        x = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(x)
+        x = BatchNormalization(momentum=0.95)(x)
+        x = Activation(activation=activation)(x)
+
+    if t_mode == 0:
+        x = GlobalAveragePooling1D(name='pool')(x)
+        x = Dense(2, name='output', activation='linear')(x)
+
+    if t_mode == 1:
+        w = Dense(1, name='met_weight_class', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
+        w = BatchNormalization(trainable=False, name='met_weight_minus_one_class', epsilon=False)(w)
+        x = Multiply()([w, pxpy])
+        x = weighted_sum_layer(name='weighted_sum_layer_class')(x)
+
+        m = add_axis()(x)
+
+        units_list = [32,32]
+        for i_dense in range(2):
+            m = Dense(units_list[i_dense], activation='linear', kernel_initializer='lecun_uniform')(m)
+            m = BatchNormalization(momentum=0.95)(m)
+            m = Activation(activation=activation)(m)
+        m = Dense(num_of_bins, activation='linear', kernel_initializer='lecun_uniform')(m)
+        w = BatchNormalization(momentum=0.95)(m)
+        w = Softmax(axis=-1)(w)
+        return w
+
+def FC_loc(x, pxpy, units, n_dense_layers, activation, t_mode=1):
+    for i_dense in range(n_dense_layers):
+        x = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(x)
+        x = BatchNormalization(momentum=0.95)(x)
+        x = Activation(activation=activation)(x)
+
+    if t_mode == 0:
+        x = GlobalAveragePooling1D(name='pool')(x)
+        x = Dense(2, name='output', activation='linear')(x)
+
+    if t_mode == 1:
+        w = Dense(1, name='met_weight_loc', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
+        w = BatchNormalization(trainable=False, name='met_weight_minus_one_loc', epsilon=False)(w)
+        x = Multiply()([w, pxpy])
+
+        x = GlobalAveragePooling1D(name='output')(x)
+        return x
+
 def dense_embedding(n_features=6,
                     n_features_cat=2,
                     activation='relu',
@@ -106,42 +152,15 @@ def dense_embedding(n_features=6,
     emb_concat = Concatenate()(embeddings)
     x = Concatenate()([inputs_cont, emb_concat])
 
-    for i_dense in range(n_dense_layers):
-        x = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(x)
-        x = BatchNormalization(momentum=0.95)(x)
-        x = Activation(activation=activation)(x)
-
-    if t_mode == 0:
-        x = GlobalAveragePooling1D(name='pool')(x)
-        x = Dense(2, name='output', activation='linear')(x)
-
-    if t_mode == 1:
-        if with_bias:
-            b = Dense(2, name='met_bias', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
-            pxpy = Add()([pxpy, b])
-        w = Dense(1, name='met_weight', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
-        w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
-        x = Multiply()([w, pxpy])
-        x = weighted_sum_layer(name='weighted_sum_layer')(x)
-
-        m = add_axis()(x)
-
-        units_list = [32,32]
-        for i_dense in range(2):
-            m = Dense(units_list[i_dense], activation='linear', kernel_initializer='lecun_uniform')(m)
-            m = BatchNormalization(momentum=0.95)(m)
-            m = Activation(activation=activation)(m)
-        m = Dense(num_of_bins, activation='linear', kernel_initializer='lecun_uniform')(m)
-        w = BatchNormalization(momentum=0.95)(m)
-        w = Softmax(axis=-1)(w)
-        m = bin_multiply(num_of_bins=num_of_bins)(w)
-
+    m = FC_loc(x, pxpy, units, n_dense_layers, activation)
+    w = FC_class(x, pxpy, num_of_bins, units, n_dense_layers, activation)
 
     outputs = [m,w]
 
     keras_model = Model(inputs=inputs, outputs=outputs)
 
-    keras_model.get_layer('met_weight_minus_one').set_weights([np.array([1.]), np.array([-1.]), np.array([0.]), np.array([1.])])
+    keras_model.get_layer('met_weight_minus_one_class').set_weights([np.array([1.]), np.array([-1.]), np.array([0.]), np.array([1.])])
+    keras_model.get_layer('met_weight_minus_one_loc').set_weights([np.array([1.]), np.array([-1.]), np.array([0.]), np.array([1.])])
 
     return keras_model
 
