@@ -27,7 +27,7 @@ from Write_MET_binned_histogram import *
 from cyclical_learning_rate import CyclicLR
 from models import *
 from utils import *
-from loss import custom_loss
+from loss import custom_loss_wrapper
 from DataGenerator import DataGenerator
 
 import matplotlib.pyplot as plt
@@ -136,6 +136,7 @@ def train_dataGenerator(args):
     edge_list = args.edge_features
     model_output = args.model_output
     num_of_bins = int(args.num_of_bins)
+    custom_loss = custom_loss_wrapper(num_of_bins)
 
     # separate files into training, validation, and testing
     filesList = glob(os.path.join(inputPath, '*.root'))
