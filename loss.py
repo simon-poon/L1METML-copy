@@ -52,7 +52,7 @@ def custom_loss(y_true, y_pred):
     #dev += tf.abs(tf.reduce_sum(upar_pred_pos_bin5) + tf.reduce_sum(upar_pred_neg_bin5))
     #dev /= norm
 
-    loss = 1*K.mean((pt_pred - pt_truth)**2) + 0.5*K.mean((px_pred - px_truth)**2 + (py_pred - py_truth)**2)
+    loss = 100*K.mean((pt_pred - pt_truth)**2) + 0.5*K.mean((px_pred - px_truth)**2 + (py_pred - py_truth)**2)
 
     #loss += 200.*dev
     #loss += 5000.*dev
