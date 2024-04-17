@@ -100,7 +100,7 @@ def FC_class(x, pxpy, num_of_bins, units, n_dense_layers, activation, t_mode=1):
         w = Softmax(axis=-1)(w)
         return w
 
-def FC_loc(x, pxpy, units, n_dense_layers, activation, t_mode=1):
+def FC_loc(x, pxpy, num_of_bins, units, n_dense_layers, activation, t_mode=1):
     for i_dense in range(n_dense_layers):
         x = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(x)
         x = BatchNormalization(momentum=0.95)(x)
@@ -159,12 +159,69 @@ def dense_embedding(n_features=6,
     # can concatenate all 3 if updated in hls4ml, for now; do it pairwise
     # x = Concatenate()([inputs_cont] + embeddings)
     emb_concat = Concatenate()(embeddings)
-    x = Concatenate()([inputs_cont, emb_concat])
+    conc = Concatenate()([inputs_cont, emb_concat])
 
-    m = FC_loc(x, pxpy, units, n_dense_layers, activation)
-    w = FC_class(x, pxpy, num_of_bins, units, n_dense_layers, activation)
+    #----------------------------------------------
+    # FC_loc BEGINS
+    for i_dense in range(n_dense_layers):
+        x = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(conc)
+        x = BatchNormalization(momentum=0.95)(x)
+        x = Activation(activation=activation)(x)
 
-    outputs = m,w
+    if t_mode == 0:
+        x = GlobalAveragePooling1D(name='pool')(x)
+        x = Dense(2, name='output', activation='linear')(x)
+
+    if t_mode == 1:
+        w = Dense(1, name='met_weight_loc', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
+        w = BatchNormalization(trainable=False, name='met_weight_minus_one_loc', epsilon=False)(w)
+        x = Multiply()([w, pxpy])
+        x = weighted_sum_layer(name='weighted_sum_layer_loc')(x)
+
+        m = add_axis()(x)
+
+        units_list = [32,32]
+        for i_dense in range(2):
+            m = Dense(units_list[i_dense], activation='linear', kernel_initializer='lecun_uniform')(m)
+            m = BatchNormalization(momentum=0.95)(m)
+            m = Activation(activation=activation)(m)
+        m = Dense(num_of_bins, activation='linear', kernel_initializer='lecun_uniform')(m)
+        loc_output = BatchNormalization(momentum=0.95)(m)
+
+    #----------------------------------------------
+    #----------------------------------------------
+    # FC_class BEGINS
+
+    for i_dense in range(n_dense_layers):
+        x = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(conc)
+        x = BatchNormalization(momentum=0.95)(x)
+        x = Activation(activation=activation)(x)
+
+    if t_mode == 0:
+        x = GlobalAveragePooling1D(name='pool')(x)
+        x = Dense(2, name='output', activation='linear')(x)
+
+    if t_mode == 1:
+        w = Dense(1, name='met_weight_class', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
+        w = BatchNormalization(trainable=False, name='met_weight_minus_one_class', epsilon=False)(w)
+        x = Multiply()([w, pxpy])
+        x = weighted_sum_layer(name='weighted_sum_layer_class')(x)
+
+        m = add_axis()(x)
+
+        units_list = [32,32]
+        for i_dense in range(2):
+            m = Dense(units_list[i_dense], activation='linear', kernel_initializer='lecun_uniform')(m)
+            m = BatchNormalization(momentum=0.95)(m)
+            m = Activation(activation=activation)(m)
+        m = Dense(num_of_bins, activation='linear', kernel_initializer='lecun_uniform')(m)
+        w = BatchNormalization(momentum=0.95)(m)
+        class_output = Softmax(axis=-1)(w)
+    
+    #FC_class ENDS
+    #--------------------------------------
+
+    outputs = [loc_output,class_output]
 
     keras_model = Model(inputs=inputs, outputs=outputs)
 
