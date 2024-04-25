@@ -159,12 +159,13 @@ def dense_embedding(n_features=6,
     # can concatenate all 3 if updated in hls4ml, for now; do it pairwise
     # x = Concatenate()([inputs_cont] + embeddings)
     emb_concat = Concatenate()(embeddings)
-    conc = Concatenate()([inputs_cont, emb_concat])
+    x = Concatenate()([inputs_cont, emb_concat])
+    y = Concatenate()([inputs_cont, emb_concat])
 
     #----------------------------------------------
     # FC_loc BEGINS
     for i_dense in range(n_dense_layers):
-        x = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(conc)
+        x = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(x)
         x = BatchNormalization(momentum=0.95)(x)
         x = Activation(activation=activation)(x)
 
@@ -193,13 +194,13 @@ def dense_embedding(n_features=6,
     # FC_class BEGINS
 
     for i_dense in range(n_dense_layers):
-        x = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(conc)
-        x = BatchNormalization(momentum=0.95)(x)
-        x = Activation(activation=activation)(x)
+        y = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(y)
+        y = BatchNormalization(momentum=0.95)(y)
+        y = Activation(activation=activation)(y)
 
     if t_mode == 0:
-        x = GlobalAveragePooling1D(name='pool')(x)
-        x = Dense(2, name='output', activation='linear')(x)
+        y = GlobalAveragePooling1D(name='pool')(y)
+        y = Dense(2, name='output', activation='linear')(y)
 
     if t_mode == 1:
         w = Dense(1, name='met_weight_class', activation='linear', kernel_initializer=initializers.VarianceScaling(scale=0.02))(x)
@@ -221,7 +222,7 @@ def dense_embedding(n_features=6,
     #FC_class ENDS
     #--------------------------------------
 
-    outputs = [loc_output,class_output]
+    outputs = [loc_output, class_output]
 
     keras_model = Model(inputs=inputs, outputs=outputs)
 
