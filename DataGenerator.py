@@ -130,8 +130,6 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
 
         # process inputs
         Y = self.y / (-self.normFac)
-        for_broadcast = np.zeros([Y.shape[0], 2, num_of_bins)
-        Y = np.zeros + Y[:, :, None]
 
         Xi, Xp, Xc1, Xc2 = preProcessing(self.X, self.normFac)
 
@@ -144,6 +142,8 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
         truth_bins_pxpy = np.concatenate([truth_bins_x, truth_bins_y],axis=-1)
         truth_bins_pxpy = np.expand_dims(truth_bins_pxpy,axis=-1)
 
+        for_broadcast = np.zeros([Y.shape[0], 2, self.num_of_bins])
+        Y_broadcast = for_broadcast + Y[:, :, None]
         if self.compute_ef == 1:
             eta = Xi[:, :, 1]
             phi = Xi[:, :, 2]
@@ -195,7 +195,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):
             self.emb_input_dim = {i: int(np.max(Xc[i][0:1000])) + 1 for i in range(self.n_features_pf_cat)}
 
             # Prepare training/val data
-            Yr = [Y, truth_bins_pxpy]
+            Yr = [Y_broadcast, truth_bins_pxpy]
             Xr = [Xi, Xp] + Xc
             return Xr, Yr
 
