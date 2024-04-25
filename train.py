@@ -247,14 +247,33 @@ def train_dataGenerator(args):
 
     end_time = time.time()  # check end time
 
-    predict_test = keras_model.predict(testGenerator)[0] * normFac
-    print(predict_test.shape)
+    predict_test = keras_model.predict(testGenerator)
+
+    if isinstance(model_output,str)==True:
+        keras_model.save(model_output)
+
+    loc_output = predict_test[0] * normFac
+    class_output = predict_test[1]
+
+    bins = np.linspace(-500,500, num_of_bins-1)
+    bin_center = bins - (bins[1] - bins[0])/2
+    bin_center = np.append(bin_center, 500 + (bins[1] - bins[0])/2) 
+    for_broadcast = np.zeros([loc_output.shape[0],2,num_of_bins])
+    bin_center_arr = for_broadcast + bin_center[None, None, :]
+
+    max_conf_idx = np.amax(class_output, axis=-1, keepdims=True)
+    max_conf_bin_centre = bin_center_arr[class_output==max_conf_idx]
+    pxpy_corr_val = loc_output[class_output==max_conf_idx]
+
+    pred_pxpy = max_conf_bin_centre + pxpy_corr_val
+    predict_test = pred_pxpy.reshape(loc_output.shape[0], loc_output.shape[1])
+
     all_PUPPI_pt = []
     Yr_test = []
     for (Xr, Yr) in tqdm.tqdm(testGenerator):
         puppi_pt = np.sum(Xr[1], axis=1)
         all_PUPPI_pt.append(puppi_pt)
-        Yr_test.append(Yr[0])
+        Yr_test.append(Yr[0][:,:,0])
     
 
     PUPPI_pt = normFac * np.concatenate(all_PUPPI_pt)
@@ -268,9 +287,6 @@ def train_dataGenerator(args):
     fi.write("Working Time (m) : {}".format((end_time - start_time)/60.))
 
     fi.close()
-    
-    if isinstance(model_output,str)==True:
-        keras_model.save(model_output)
 
     '''
     load_keras_model = load_model('/l1metmlvol/saved_keras_models/def_model_100pf_300epochs', custom_objects={ 'custom_loss': custom_loss}, compile=True)
