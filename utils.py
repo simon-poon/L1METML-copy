@@ -33,10 +33,12 @@ def preProcessing(A, normFac, EVT=None):
     norm = normFac
 
     pt = A[:, :, 0:1] / norm
-    px = A[:, :, 1:2] / norm
-    py = A[:, :, 2:3] / norm
+    px = -A[:, :, 1:2] / norm
+    py = -A[:, :, 2:3] / norm
     eta = A[:, :, 3:4]
     phi = A[:, :, 4:5]
+    phi = (phi+np.pi)
+    phi[phi>np.pi] = phi[phi>np.pi] - 2*np.pi
     puppi = A[:, :, 5:6]
 
     # remove outliers
