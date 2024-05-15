@@ -21,12 +21,12 @@ class weighted_sum_layer(Layer):
       - ndim items to sum
     Currently works for 3-dim input, summing over the 2nd axis'''
     #def __init__(self, ndim=2, with_bias=False, **kwargs):
-    #    super(weighted_sum_layer, self).__init__(**kwargs)
+    #    super(_layer, self).__init__(**kwargs)
     #    self.with_bias = with_bias
     #    self.ndim = ndim
 #
     #def get_config(self):
-    #    cfg = super(weighted_sum_layer, self).get_config()
+    #    cfg = super(_layer, self).get_config()
     #    cfg['ndim'] = self.ndim
     #    cfg['with_bias'] = self.with_bias
     #    return cfg
@@ -85,7 +85,7 @@ def dense_embedding(n_features=6,
         w = BatchNormalization(trainable=False, name='met_weight_batch_norm', epsilon=False)(w)
         x = Multiply()([w, pxpy])
 
-        x = weighted_sum_layer(name='output')(x)
+        x = GlobalAveragePooling1D(name='output')(x)
     outputs = x
 
     keras_model = Model(inputs=inputs, outputs=outputs)
@@ -156,7 +156,7 @@ def dense_embedding_quantized(n_features=6,
         w = BatchNormalization(trainable=False, name='met_weight_batch_norm', epsilon=False)(w)
         x = Multiply()([w, pxpy])
 
-        x = weighted_sum_layer(name='output')(x)
+        x = GlobalAveragePooling1D(name='output')(x)
     outputs = x
 
     keras_model = Model(inputs=inputs, outputs=outputs)
