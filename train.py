@@ -33,6 +33,7 @@ from DataGenerator import DataGenerator
 import matplotlib.pyplot as plt
 import mplhep as hep
 
+tf.config.experimental.enable_op_determinism()
 set_random_seed(812)
 
 def MakeEdgeHist(edge_feat, xname, outputname, nbins=1000, density=False, yname="# of edges"):
