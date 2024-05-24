@@ -225,7 +225,7 @@ def train_dataGenerator(args):
         keras_model.compile(optimizer='adam', loss=custom_loss, metrics=['mean_absolute_error', 'mean_squared_error'])
         verbose = 1
     elif t_mode == 1:
-        optimizer = optimizers.Adam(lr=1., clipnorm=1.)
+        optimizer = optimizers.Adam(lr=10., clipnorm=1.)
         keras_model.compile(loss=custom_loss, optimizer=optimizer,
                             metrics=['mean_absolute_error', 'mean_squared_error'])
         verbose = 1
