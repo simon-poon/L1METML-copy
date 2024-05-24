@@ -13,6 +13,7 @@ import itertools
 import tensorflow as tf
 from tensorflow.keras.layers import Layer
 
+tf.config.experimental.enable_op_determinism()
 set_random_seed(812)
 
 class weighted_sum_layer(Layer):
