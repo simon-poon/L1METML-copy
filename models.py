@@ -1,5 +1,6 @@
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Dense, Embedding, BatchNormalization, Dropout, Lambda, Conv1D, SpatialDropout1D, Concatenate, Flatten, Reshape, Multiply, Add, GlobalAveragePooling1D, Activation, Permute
+from tensorflow.keras.utils import set_random_seed
 import tensorflow.keras.backend as K
 import tensorflow as tf
 from tensorflow import slice
@@ -11,6 +12,8 @@ import itertools
 
 import tensorflow as tf
 from tensorflow.keras.layers import Layer
+
+set_random_seed(812)
 
 class weighted_sum_layer(Layer):
     '''Either does weight times inputs
