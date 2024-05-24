@@ -2,7 +2,7 @@ import tensorflow
 import tensorflow.keras.backend as K
 from tensorflow.keras import optimizers, initializers
 from tensorflow.keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, EarlyStopping, CSVLogger
-from tensorflow.keras.utils import plot_model
+from tensorflow.keras.utils import plot_model, set_random_seed
 from tensorflow.keras.models import Model, load_model
 from sklearn.model_selection import train_test_split
 
@@ -33,6 +33,7 @@ from DataGenerator import DataGenerator
 import matplotlib.pyplot as plt
 import mplhep as hep
 
+set_random_seed(812)
 
 def MakeEdgeHist(edge_feat, xname, outputname, nbins=1000, density=False, yname="# of edges"):
     plt.style.use(hep.style.CMS)
