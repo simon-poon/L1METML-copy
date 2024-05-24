@@ -33,6 +33,7 @@ from DataGenerator import DataGenerator
 import matplotlib.pyplot as plt
 import mplhep as hep
 
+import tensorflow as tf
 tf.config.experimental.enable_op_determinism()
 set_random_seed(812)
 
