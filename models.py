@@ -141,7 +141,7 @@ def dense_embedding_quantized(n_features=6,
     # x = Concatenate()([inputs_cont] + embeddings)
     emb_concat = Concatenate()(embeddings)
     x = Concatenate()([inputs_cont, emb_concat])
-
+    activation='relu'
     for i_dense in range(n_dense_layers):
         x = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(x)
         x = BatchNormalization(momentum=0.95)(x)
