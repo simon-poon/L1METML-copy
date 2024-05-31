@@ -85,8 +85,8 @@ def dense_embedding(n_features=6,
         w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
         x = Multiply()([w, pxpy])
 
-        x = GlobalAveragePooling1D(name='output')(x)
-        #x = weighted_sum_layer(name='output')(x)
+        #x = GlobalAveragePooling1D(name='output')(x)
+        x = weighted_sum_layer(name='output')(x)
     outputs = x
 
     keras_model = Model(inputs=inputs, outputs=outputs)
@@ -157,8 +157,8 @@ def dense_embedding_quantized(n_features=6,
         w = BatchNormalization(trainable=False, name='met_weight_minus_one', epsilon=False)(w)
         x = Multiply()([w, pxpy])
 
-        x = GlobalAveragePooling1D(name='output')(x)
-        #x = weighted_sum_layer(name='output')(x)
+        #x = GlobalAveragePooling1D(name='output')(x)
+        x = weighted_sum_layer(name='output')(x)
     outputs = x
 
     keras_model = Model(inputs=inputs, outputs=outputs)
