@@ -10,24 +10,6 @@ import numpy as np
 import itertools
 
 class weighted_sum_layer(Layer):
-    '''Either does weight times inputs
-    or weight times inputs + bias
-    Input to be provided as:
-      - Weights
-      - ndim biases (if applicable)
-      - ndim items to sum
-    Currently works for 3-dim input, summing over the 2nd axis'''
-    #def __init__(self, ndim=2, with_bias=False, **kwargs):
-    #    super(weighted_sum_layer, self).__init__(**kwargs)
-    #    self.with_bias = with_bias
-    #    self.ndim = ndim
-#
-    #def get_config(self):
-    #    cfg = super(weighted_sum_layer, self).get_config()
-    #    cfg['ndim'] = self.ndim
-    #    cfg['with_bias'] = self.with_bias
-    #    return cfg
-
     def call(self, inputs):
         return tf.reduce_sum(inputs, axis=1)
 
@@ -127,7 +109,8 @@ def FC_loc(x, pxpy, num_of_bins, units, n_dense_layers, activation, t_mode=1):
         w = BatchNormalization(momentum=0.95)(m)
         return w
 
-def dense_embedding(n_features=6,
+# Multibin loss from https://arxiv.org/pdf/1612.00496
+def multibin_loss_1(n_features=6,
                     n_features_cat=2,
                     activation='relu',
                     number_of_pupcandis=100,
@@ -163,7 +146,8 @@ def dense_embedding(n_features=6,
     y = Concatenate()([inputs_cont, emb_concat])
 
     #----------------------------------------------
-    # FC_loc BEGINS
+    # MLP for localization loss BEGINS
+                        
     for i_dense in range(n_dense_layers):
         x = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(x)
         x = BatchNormalization(momentum=0.95)(x)
@@ -190,8 +174,7 @@ def dense_embedding(n_features=6,
         loc_output = BatchNormalization(momentum=0.95)(m)
 
     #----------------------------------------------
-    #----------------------------------------------
-    # FC_class BEGINS
+    # MLP for confidence loss (i.e. for classification) BEGINS
 
     for i_dense in range(n_dense_layers):
         y = Dense(units[i_dense], activation='linear', kernel_initializer='lecun_uniform')(y)
@@ -218,10 +201,8 @@ def dense_embedding(n_features=6,
         m = Dense(num_of_bins, activation='linear', kernel_initializer='lecun_uniform')(m)
         w = BatchNormalization(momentum=0.95)(m)
         class_output = Softmax(axis=-1)(w)
-    
-    #FC_class ENDS
-    #--------------------------------------
 
+                        
     outputs = [loc_output, class_output]
 
     keras_model = Model(inputs=inputs, outputs=outputs)
